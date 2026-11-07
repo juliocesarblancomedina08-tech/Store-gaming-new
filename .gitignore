@@ -1,44 +1,31 @@
-Dependencias
 
-/node_modules
-/.pnp
-.pnp.*
+# Dependencies
+node_modules/
 
-Pruebas y cobertura
+# Next.js
+.next/
+out/
+build/
 
-/coverage
-
-Next.js
-
-/.next/
-/out/
-
-Producción
-
-/build
-/dist
-
-Variables de entorno y secretos
-
+# Environment variables and secrets
 .env
-.env.*
-!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-Registros
-
+# Logs
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 
-Vercel
+# Deployment
+.vercel/
 
-.vercel
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
 
-Sistema operativo y editor
-
+# Operating system
 .DS_Store
 Thumbs.db
-.vscode/*
-!.vscode/extensions.json
-.idea
