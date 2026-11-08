@@ -1,0 +1,282 @@
+export const MOBILE_LEGENDS_GLOBAL = {
+  categoryId: "mobile_legends_global",
+
+  name: "Mobile Legends (Global)",
+
+  fields: [
+    {
+      key: "id_jugador",
+      label: "ID de jugador",
+      type: "text",
+    },
+    {
+      key: "id_servidor",
+      label: "ID de servidor",
+      type: "text",
+    },
+  ],
+
+  offers: [
+    {
+      id: "500_65_diamonds_first_top_up_bonus",
+      name: "500 + 65 Diamantes (Primera Recarga)",
+      supplierPrice: 7.3678,
+      price: 7.57,
+    },
+    {
+      id: "250_25_diamonds_first_top_up_bonus",
+      name: "250 + 25 Diamantes (Primera Recarga)",
+      supplierPrice: 3.5867,
+      price: 3.79,
+    },
+    {
+      id: "150_15_diamonds_first_top_up_bonus",
+      name: "150 + 15 Diamantes (Primera Recarga Bonus)",
+      supplierPrice: 2.2367,
+      price: 2.44,
+    },
+    {
+      id: "50_5_diamonds_first_top_up_bonus",
+      name: "50 + 5 Diamonds (First Top-Up Bonus)",
+      supplierPrice: 0.7456,
+      price: 0.95,
+    },
+
+    {
+      id: "1084_diamonds",
+      name: "1084 Diamonds",
+      supplierPrice: 17.3189,
+      price: 17.52,
+    },
+    {
+      id: "7740_1548_diamonds",
+      name: "7740 + 1548 Diamonds",
+      supplierPrice: 114.7039,
+      price: 114.90,
+    },
+    {
+      id: "4649_883_diamonds",
+      name: "4649 + 883 Diamonds",
+      supplierPrice: 69.0641,
+      price: 69.26,
+    },
+    {
+      id: "3099_589_diamantes",
+      name: "3099 + 589 Diamantes",
+      supplierPrice: 45.7405,
+      price: 45.94,
+    },
+    {
+      id: "1860_335_diamantes",
+      name: "1860 + 335 Diamantes",
+      supplierPrice: 27.4141,
+      price: 27.61,
+    },
+    {
+      id: "625_81_diamantes",
+      name: "625 + 81 Diamantes",
+      supplierPrice: 9.0574,
+      price: 9.26,
+    },
+    {
+      id: "234_23_diamantes",
+      name: "234 + 23 Diamantes",
+      supplierPrice: 3.3348,
+      price: 3.53,
+    },
+    {
+      id: "156_16_diamantes",
+      name: "156 + 16 Diamantes",
+      supplierPrice: 2.3072,
+      price: 2.51,
+    },
+    {
+      id: "78_8_diamantes",
+      name: "78 + 8 Diamantes",
+      supplierPrice: 1.1586,
+      price: 1.36,
+    },
+    {
+      id: "10_1_diamantes",
+      name: "10 + 1 Diamantes",
+      supplierPrice: 0.2519,
+      price: 0.45,
+    },
+    {
+      id: "20_2_diamantes",
+      name: "20 + 2 Diamantes",
+      supplierPrice: 0.5138,
+      price: 0.71,
+    },
+    {
+      id: "51_5_diamantes",
+      name: "51 + 5 Diamantes",
+      supplierPrice: 1.2695,
+      price: 1.47,
+    },
+    {
+      id: "102_10_diamantes",
+      name: "102 + 10 Diamantes",
+      supplierPrice: 2.1057,
+      price: 2.31,
+    },
+    {
+      id: "504_66_diamantes",
+      name: "504 + 66 Diamantes",
+      supplierPrice: 9.0877,
+      price: 9.29,
+    },
+    {
+      id: "1007_156_diamantes",
+      name: "1007 + 156 Diamantes",
+      supplierPrice: 18.5279,
+      price: 18.73,
+    },
+    {
+      id: "2015_383_diamantes",
+      name: "2015 + 383 Diamantes",
+      supplierPrice: 32.9453,
+      price: 33.15,
+    },
+
+    {
+      id: "14_diamantes",
+      name: "14 Diamantes",
+      supplierPrice: 0.2317,
+      price: 0.43,
+    },
+    {
+      id: "42_diamantes",
+      name: "42 Diamantes",
+      supplierPrice: 0.6952,
+      price: 0.90,
+    },
+    {
+      id: "70_diamantes",
+      name: "70 Diamantes",
+      supplierPrice: 1.1586,
+      price: 1.36,
+    },
+    {
+      id: "140_diamantes",
+      name: "140 Diamantes",
+      supplierPrice: 2.3072,
+      price: 2.51,
+    },
+    {
+      id: "284_diamantes",
+      name: "284 Diamantes",
+      supplierPrice: 4.6244,
+      price: 4.82,
+    },
+    {
+      id: "355_diamantes",
+      name: "355 Diamantes",
+      supplierPrice: 5.7931,
+      price: 5.99,
+    },
+    {
+      id: "429_diamantes",
+      name: "429 Diamantes",
+      supplierPrice: 5.6833,
+      price: 5.88,
+    },
+    {
+      id: "716_diamantes",
+      name: "716 Diamantes",
+      supplierPrice: 11.5762,
+      price: 11.78,
+    },
+    {
+      id: "1446_diamantes",
+      name: "1446 Diamantes",
+      supplierPrice: 23.0818,
+      price: 23.28,
+    },
+    {
+      id: "2976_diamantes",
+      name: "2976 Diamantes",
+      supplierPrice: 46.2946,
+      price: 46.49,
+    },
+    {
+      id: "7502_diamantes",
+      name: "7502 Diamantes",
+      supplierPrice: 115.52,
+      price: 115.72,
+    },
+
+    {
+      id: "weekly_pass",
+      name: "Pase Semanal",
+      supplierPrice: 1.4407,
+      price: 1.64,
+    },
+    {
+      id: "weekly_elite_pack",
+      name: "Paquete Élite Semanal",
+      supplierPrice: 0.7607,
+      price: 0.96,
+    },
+    {
+      id: "twilight_pass",
+      name: "Pase Crepúsculo",
+      supplierPrice: 7.7074,
+      price: 7.91,
+    },
+    {
+      id: "5_diamantes",
+      name: "5 Diamantes",
+      supplierPrice: 0.0907,
+      price: 0.29,
+    },
+    {
+      id: "12_diamantes",
+      name: "12 Diamantes",
+      supplierPrice: 0.2156,
+      price: 0.42,
+    },
+    {
+      id: "19_diamantes",
+      name: "19 Diamantes",
+      supplierPrice: 0.3496,
+      price: 0.55,
+    },
+    {
+      id: "28_diamantes",
+      name: "28 Diamantes",
+      supplierPrice: 0.5038,
+      price: 0.70,
+    },
+    {
+      id: "170_diamantes",
+      name: "170 Diamantes",
+      supplierPrice: 2.8875,
+      price: 3.09,
+    },
+    {
+      id: "240_diamantes",
+      name: "240 Diamantes",
+      supplierPrice: 4.0904,
+      price: 4.29,
+    },
+    {
+      id: "296_diamantes",
+      name: "296 Diamantes",
+      supplierPrice: 5.0254,
+      price: 5.23,
+    },
+    {
+      id: "2010_diamantes",
+      name: "2010 Diamantes",
+      supplierPrice: 31.4461,
+      price: 31.65,
+    },
+    {
+      id: "paquete_élite_mensual",
+      name: "Paquete Élite Mensual",
+      supplierPrice: 3.7822,
+      price: 3.98,
+    },
+  ],
+} as const;
