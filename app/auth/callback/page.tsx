@@ -7,73 +7,70 @@ import { supabase } from "../../../lib/supabase";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
+
   const [message, setMessage] = useState(
     "Verificando tu cuenta..."
   );
 
   useEffect(() => {
-    let active = true;
+    async function verifySession() {
+      const { data, error } =
+        await supabase.auth.getSession();
 
-    async function verifyAccount() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
-
-        if (code) {
-          const { error } =
-            await supabase.auth.exchangeCodeForSession(code);
-
-          if (error) {
-            throw error;
-          }
-        } else {
-          const { data, error } =
-            await supabase.auth.getSession();
-
-          if (error || !data.session) {
-            throw new Error("No se pudo verificar la sesión.");
-          }
-        }
-
-        if (!active) return;
-
-        setMessage("¡Cuenta verificada! Redirigiendo...");
-
-        router.replace("/home");
-        router.refresh();
-      } catch {
-        if (!active) return;
-
+      if (error || !data.session) {
         setMessage(
-          "No se pudo verificar tu cuenta. Vuelve a iniciar sesión."
+          "No se pudo confirmar la cuenta. Intenta iniciar sesión."
         );
 
         setTimeout(() => {
-          router.replace("/login");
-        }, 2500);
+          router.push("/login");
+        }, 3000);
+
+        return;
       }
+
+      setMessage(
+        "¡Cuenta confirmada correctamente! 🎉"
+      );
+
+      setTimeout(() => {
+        router.push("/home");
+      }, 1500);
     }
 
-    verifyAccount();
-
-    return () => {
-      active = false;
-    };
+    verifySession();
   }, [router]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-950 px-4 text-white">
-      <div className="w-full max-w-md rounded-2xl border border-gray-800 bg-gray-900 p-8 text-center">
-        <h1 className="mb-4 text-2xl font-bold">
+    <main className="auth-page">
+      <div className="auth-background" />
+
+      <section className="auth-card">
+        <div className="auth-logo">
+          🛒🎮
+        </div>
+
+        <p className="auth-small">
           STORE GAMING
+        </p>
+
+        <h1 className="auth-title">
+          VERIFICANDO <span>CUENTA</span>
         </h1>
 
-        <div className="mb-5 text-4xl">🎮</div>
-
-        <p role="status" aria-live="polite" className="text-gray-300">
+        <p className="auth-description">
           {message}
         </p>
-      </div>
+
+        <div
+          style={{
+            marginTop: "24px",
+            fontSize: "36px",
+          }}
+        >
+          🔐
+        </div>
+      </section>
     </main>
   );
 }
