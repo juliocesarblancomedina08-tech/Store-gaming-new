@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 
 import { supabaseAdmin } from "../../../../lib/supabaseAdmin";
@@ -349,7 +348,7 @@ export async function POST(
     }
 
     const {
-      data: userData,
+            data: userData,
       error: userError,
     } =
       await supabaseAdmin.auth.getUser(
@@ -379,3 +378,1002 @@ export async function POST(
      * 3. LEER BODY
      * ---------------------------------------------------------------
      */
+
+    let body: any;
+
+    try {
+      body =
+        await request.json();
+    } catch {
+      return jsonError(
+        "El cuerpo de la solicitud no es válido.",
+        400
+      );
+    }
+
+    const offerId =
+      normalizeString(
+        body?.offerId
+      );
+
+    const userId =
+      normalizeUserId(
+        body?.userId ??
+          body?.playerId
+      );
+
+    const idempotencyKey =
+      normalizeIdempotencyKey(
+        body?.idempotencyKey
+      );
+
+    /*
+     * ---------------------------------------------------------------
+     * 4. VALIDAR OFERTA
+     * ---------------------------------------------------------------
+     */
+
+    if (!offerId) {
+      return jsonError(
+        "Debe seleccionar una oferta."
+      );
+    }
+
+    const selectedOffer =
+      CALL_OF_DUTY.offers.find(
+        (offer) =>
+          offer.id ===
+          offerId
+      );
+
+    if (!selectedOffer) {
+      return jsonError(
+        "La oferta seleccionada no existe.",
+        400
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 5. VALIDAR ID DE ACTIVISION
+     * ---------------------------------------------------------------
+     */
+
+    if (!userId) {
+      return jsonError(
+        "Debe introducir el ID de usuario de Activision."
+      );
+    }
+
+    if (
+      !isValidUserId(
+        userId
+      )
+    ) {
+      return jsonError(
+        "El ID de usuario de Activision no tiene un formato válido."
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 6. VALIDAR IDEMPOTENCIA
+     * ---------------------------------------------------------------
+     */
+
+    if (
+      !isValidIdempotencyKey(
+        idempotencyKey
+      )
+    ) {
+      return jsonError(
+        "La clave de la orden no es válida."
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 7. COMPROBAR ORDEN DUPLICADA
+     * ---------------------------------------------------------------
+     */
+
+    const {
+      data: existingOrder,
+      error:
+        existingOrderError,
+    } =
+      await supabaseAdmin
+        .from("topup_orders")
+        .select("*")
+        .eq(
+          "user_id",
+          authenticatedUser.id
+        )
+        .eq(
+          "idempotency_key",
+          idempotencyKey
+        )
+        .maybeSingle();
+
+    if (
+      existingOrderError
+    ) {
+      console.error(
+        "CHECK EXISTING TOPUP ORDER ERROR:",
+        existingOrderError
+      );
+
+      return jsonError(
+        "No se pudo comprobar la orden.",
+        500
+      );
+    }
+
+    if (existingOrder) {
+      const existing =
+        existingOrder as TopupOrderRow;
+
+      return jsonSuccess({
+        message:
+          "Esta orden ya fue procesada.",
+
+        order: {
+          ...existing,
+
+          order_number:
+            existing.id,
+
+          price:
+            existing.retail_price,
+
+          amount:
+            existing.retail_price,
+
+          supplier_status:
+            existing.status,
+        },
+      });
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 8. DATOS DEL USUARIO
+     * ---------------------------------------------------------------
+     *
+     * NO consultamos profiles aquí.
+     *
+     * Esto evita que una diferencia en la tabla
+     * profiles bloquee la recarga.
+     *
+     * El saldo se controla mediante:
+     *
+     * store_gaming_reserve_balance
+     * ---------------------------------------------------------------
+     */
+
+    const username =
+      authenticatedUser
+        .user_metadata
+        ?.username ||
+      null;
+
+    const email =
+      authenticatedUser.email ||
+      null;
+
+    /*
+     * ---------------------------------------------------------------
+     * 9. PRECIO
+     * ---------------------------------------------------------------
+     */
+
+    const retailPrice =
+      roundMoney(
+        toNumber(
+          selectedOffer.price
+        )
+      );
+
+    const supplierPrice =
+      roundMoney(
+        toNumber(
+          selectedOffer.supplierPrice
+        )
+      );
+
+    if (
+      !Number.isFinite(
+        retailPrice
+      ) ||
+      retailPrice <= 0
+    ) {
+      return jsonError(
+        "El precio de la oferta no es válido.",
+        500
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 10. CREAR ORDEN LOCAL
+     * ---------------------------------------------------------------
+     */
+
+    const supplierFields = {
+      user_id:
+        userId,
+    };
+
+    const orderToInsert = {
+      user_id:
+        authenticatedUser.id,
+
+      username,
+
+      email,
+
+      game:
+        CALL_OF_DUTY.name,
+
+      category_id:
+        CATEGORY_ID,
+
+      offer_id:
+        selectedOffer.id,
+
+      offer_name:
+        selectedOffer.displayName,
+
+      player_id:
+        userId,
+
+      retail_price:
+        retailPrice,
+
+      supplier_price:
+        supplierPrice,
+
+      currency:
+        "USDT",
+
+      status:
+        "RESERVED",
+
+      idempotency_key:
+        idempotencyKey,
+
+      supplier_fields:
+        supplierFields,
+
+      supplier_order_id:
+        null,
+
+      supplier_response:
+        null,
+    };
+
+    const {
+      data: insertedOrder,
+      error:
+        insertOrderError,
+    } =
+      await supabaseAdmin
+        .from("topup_orders")
+        .insert(
+          orderToInsert
+        )
+        .select("*")
+        .single();
+
+    if (
+      insertOrderError ||
+      !insertedOrder
+    ) {
+      console.error(
+        "INSERT CALL OF DUTY TOPUP ORDER ERROR:",
+        insertOrderError
+      );
+
+      return jsonError(
+        "No se pudo crear la orden.",
+        500
+      );
+    }
+
+    insertedOrderId =
+      insertedOrder.id;
+
+    /*
+     * ---------------------------------------------------------------
+     * 11. RESERVAR SALDO
+     * ---------------------------------------------------------------
+     */
+
+    const {
+      data: reserveResult,
+      error:
+        reserveError,
+    } =
+      await supabaseAdmin.rpc(
+        "store_gaming_reserve_balance",
+        {
+          p_user_id:
+                        authenticatedUser.id,
+
+          p_amount:
+            retailPrice,
+        }
+      );
+
+    if (reserveError) {
+      console.error(
+        "RESERVE BALANCE ERROR:",
+        reserveError
+      );
+
+      await supabaseAdmin
+        .from("topup_orders")
+        .update({
+          status:
+            "REJECTED",
+
+          failed_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          insertedOrderId
+        );
+
+      return jsonError(
+        "No tienes saldo suficiente para realizar esta compra.",
+        400
+      );
+    }
+
+    let reserveOk = true;
+
+    if (
+      typeof reserveResult ===
+      "boolean"
+    ) {
+      reserveOk =
+        reserveResult;
+    }
+
+    if (
+      reserveResult &&
+      typeof reserveResult ===
+        "object" &&
+      "success" in
+        (reserveResult as Record<
+          string,
+          unknown
+        >)
+    ) {
+      reserveOk =
+        Boolean(
+          (
+            reserveResult as Record<
+              string,
+              unknown
+            >
+          ).success
+        );
+    }
+
+    if (!reserveOk) {
+      await supabaseAdmin
+        .from("topup_orders")
+        .update({
+          status:
+            "REJECTED",
+
+          failed_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          insertedOrderId
+        );
+
+      return jsonError(
+        "No tienes saldo suficiente para realizar esta compra.",
+        400
+      );
+    }
+
+    reservedBalance = true;
+
+    /*
+     * ---------------------------------------------------------------
+     * 12. ENVIAR ORDEN A FAZERCARDS
+     * ---------------------------------------------------------------
+     */
+
+    const supplierUrl =
+      `${FAZER_API_BASE}/topups/order`;
+
+    const supplierBody = {
+      category_id:
+        CATEGORY_ID,
+
+      offer_id:
+        selectedOffer.supplierOfferId,
+
+      fields: {
+        user_id:
+          userId,
+      },
+    };
+
+    console.log(
+      "CALL OF DUTY → FAZERCARDS:",
+      {
+        category_id:
+          CATEGORY_ID,
+
+        offer_id:
+          selectedOffer.supplierOfferId,
+
+        fields: {
+          user_id:
+            userId,
+        },
+      }
+    );
+
+    let supplierResponse:
+      Response;
+
+    let supplierData:
+      SupplierResponse | null =
+        null;
+
+    try {
+      supplierResponse =
+        await fetchWithTimeout(
+          supplierUrl,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              Accept:
+                "application/json",
+
+              "X-API-Key":
+                FAZERCARDS_API_KEY,
+
+              "Idempotency-Key":
+                idempotencyKey,
+
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+
+              Referer:
+                "https://reseller.fazercards.com/",
+
+              Origin:
+                "https://reseller.fazercards.com",
+            },
+
+            body:
+              JSON.stringify(
+                supplierBody
+              ),
+          }
+        );
+
+      const supplierText =
+        await supplierResponse.text();
+
+      console.log(
+        "FAZERCARDS CALL OF DUTY RESPONSE:",
+        {
+          status:
+            supplierResponse.status,
+
+          body:
+            supplierText,
+        }
+      );
+
+      try {
+        supplierData =
+          supplierText
+            ? JSON.parse(
+                supplierText
+              )
+            : null;
+      } catch {
+        supplierData = {
+          ok: false,
+
+          message:
+            supplierText ||
+            "Respuesta no JSON del proveedor.",
+        };
+      }
+    } catch (error) {
+      console.error(
+        "FAZERCARDS CALL OF DUTY REQUEST ERROR:",
+        error
+      );
+
+      /*
+       * Si no conseguimos contactar al proveedor,
+       * devolvemos el saldo reservado.
+       */
+
+      if (
+        reservedBalance &&
+        insertedOrderId
+      ) {
+        await refundOrder(
+          insertedOrderId
+        );
+
+        reservedBalance =
+          false;
+      }
+
+      await supabaseAdmin
+        .from("topup_orders")
+        .update({
+          status:
+            "REJECTED",
+
+          failed_at:
+            new Date().toISOString(),
+
+          supplier_response: {
+            error:
+              "No fue posible conectar con FazerCards.",
+          },
+        })
+        .eq(
+          "id",
+          insertedOrderId
+        );
+
+      return jsonError(
+        "No fue posible conectar con FazerCards.",
+        502
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 13. GUARDAR RESPUESTA DE FAZERCARDS
+     * ---------------------------------------------------------------
+     */
+
+    await supabaseAdmin
+      .from("topup_orders")
+      .update({
+        supplier_response:
+          supplierData,
+      })
+      .eq(
+        "id",
+        insertedOrderId
+      );
+
+    /*
+     * ---------------------------------------------------------------
+     * 14. FAZERCARDS RECHAZÓ
+     * ---------------------------------------------------------------
+     */
+
+    if (
+      !supplierResponse.ok ||
+      supplierData?.ok === false
+    ) {
+      console.error(
+        "FAZERCARDS CALL OF DUTY ERROR:",
+        {
+          status:
+            supplierResponse.status,
+
+          response:
+            supplierData,
+        }
+      );
+
+      if (
+        reservedBalance &&
+        insertedOrderId
+      ) {
+        await refundOrder(
+          insertedOrderId
+        );
+
+        reservedBalance =
+          false;
+      }
+
+      await supabaseAdmin
+        .from("topup_orders")
+        .update({
+          status:
+            "REJECTED",
+
+          failed_at:
+            new Date().toISOString(),
+
+          supplier_response:
+            supplierData,
+        })
+        .eq(
+          "id",
+          insertedOrderId
+        );
+
+      return jsonError(
+        supplierData?.error ||
+          supplierData?.message ||
+          "FazerCards rechazó la orden.",
+        502,
+        {
+          supplierStatus:
+            supplierResponse.status,
+
+          supplier:
+            supplierData,
+        }
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 15. EXTRAER ORDEN DEL PROVEEDOR
+     * ---------------------------------------------------------------
+     */
+
+    const supplierOrderId =
+      extractSupplierOrderId(
+        supplierData
+      );
+
+    const finalSupplierStatus =
+      extractSupplierStatus(
+        supplierData
+      );
+
+    const normalizedSupplierStatus =
+      finalSupplierStatus
+        .toLowerCase()
+        .trim();
+        /*
+     * ---------------------------------------------------------------
+     * 16. ESTADOS
+     * ---------------------------------------------------------------
+     */
+
+    const completedStatuses = [
+      "completed",
+      "complete",
+      "success",
+      "successful",
+      "delivered",
+      "done",
+    ];
+
+    const pendingStatuses = [
+      "pending",
+      "processing",
+      "in_progress",
+      "in-progress",
+      "created",
+      "waiting",
+      "queued",
+    ];
+
+    const failedStatuses = [
+      "failed",
+      "failure",
+      "rejected",
+      "cancelled",
+      "canceled",
+      "error",
+    ];
+
+    const isCompleted =
+      completedStatuses.includes(
+        normalizedSupplierStatus
+      );
+
+    const isFailed =
+      failedStatuses.includes(
+        normalizedSupplierStatus
+      );
+
+    const isPending =
+      pendingStatuses.includes(
+        normalizedSupplierStatus
+      );
+
+    /*
+     * ---------------------------------------------------------------
+     * 17. ORDEN COMPLETADA
+     * ---------------------------------------------------------------
+     */
+
+    if (isCompleted) {
+      if (supplierOrderId) {
+        const {
+          error:
+            completeError,
+        } =
+          await supabaseAdmin.rpc(
+            "store_gaming_complete_order",
+            {
+              p_supplier_order_id:
+                supplierOrderId,
+            }
+          );
+
+        if (completeError) {
+          console.error(
+            "COMPLETE CALL OF DUTY ORDER ERROR:",
+            completeError
+          );
+        }
+      }
+
+      reservedBalance =
+        false;
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 18. ORDEN FALLIDA
+     * ---------------------------------------------------------------
+     */
+
+    if (
+      isFailed &&
+      reservedBalance &&
+      insertedOrderId
+    ) {
+      await refundOrder(
+        insertedOrderId
+      );
+
+      reservedBalance =
+        false;
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 19. FAZERCARDS ACEPTÓ PERO ESTÁ PENDIENTE
+     * ---------------------------------------------------------------
+     */
+
+    if (
+      !isCompleted &&
+      !isFailed
+    ) {
+      await supabaseAdmin
+        .from("topup_orders")
+        .update({
+          supplier_order_id:
+            supplierOrderId,
+
+          supplier_response:
+            supplierData,
+
+          status:
+            "SUPPLIER_PENDING",
+        })
+        .eq(
+          "id",
+          insertedOrderId
+        );
+
+      return jsonSuccess(
+        {
+          message:
+            "La orden fue enviada a FazerCards y quedó pendiente de procesamiento.",
+
+          order: {
+            ...insertedOrder,
+
+            order_number:
+              insertedOrder.id,
+
+            supplier_order_id:
+              supplierOrderId,
+
+            status:
+              "SUPPLIER_PENDING",
+          },
+
+          supplier:
+            supplierData,
+
+          supplierOrderId:
+            supplierOrderId,
+        },
+        202
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 20. ESTADO LOCAL
+     * ---------------------------------------------------------------
+     */
+
+    let localStatus =
+      "SUPPLIER_PENDING";
+
+    if (isCompleted) {
+      localStatus =
+        "COMPLETED";
+    } else if (isFailed) {
+      localStatus =
+        "REJECTED";
+    } else if (isPending) {
+      localStatus =
+        "SUPPLIER_PENDING";
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 21. ACTUALIZAR ORDEN FINAL
+     * ---------------------------------------------------------------
+     */
+
+    const {
+      data: updatedOrder,
+      error:
+        updateOrderError,
+    } =
+      await supabaseAdmin
+        .from("topup_orders")
+        .update({
+          supplier_order_id:
+            supplierOrderId,
+
+          supplier_response:
+            supplierData,
+
+          status:
+            localStatus,
+
+          completed_at:
+            isCompleted
+              ? new Date().toISOString()
+              : null,
+
+          failed_at:
+            isFailed
+              ? new Date().toISOString()
+              : null,
+        })
+        .eq(
+          "id",
+          insertedOrderId
+        )
+        .select("*")
+        .single();
+
+    if (
+      updateOrderError
+    ) {
+      console.error(
+        "UPDATE CALL OF DUTY TOPUP ORDER ERROR:",
+        updateOrderError
+      );
+
+      /*
+       * FazerCards ya recibió la orden.
+       *
+       * NO se vuelve a enviar.
+       */
+
+      return jsonSuccess({
+        message:
+          "La orden fue enviada a FazerCards, pero no se pudo actualizar completamente el registro local.",
+
+        order: {
+          ...insertedOrder,
+
+          supplier_order_id:
+            supplierOrderId,
+
+          status:
+            localStatus,
+
+          order_number:
+            insertedOrder.id,
+        },
+
+        supplier:
+          supplierData,
+
+        supplierOrderId:
+          supplierOrderId,
+      });
+    }
+
+    /*
+     * ---------------------------------------------------------------
+     * 22. RESPUESTA FINAL
+     * ---------------------------------------------------------------
+     */
+
+    return jsonSuccess({
+      message:
+        isCompleted
+          ? "Orden de Call of Duty Mobile completada correctamente."
+          : isFailed
+          ? "FazerCards rechazó la orden."
+          : "Orden de Call of Duty Mobile enviada correctamente a FazerCards.",
+
+      order: {
+        ...updatedOrder,
+
+        order_number:
+          updatedOrder.id,
+      },
+
+      supplier:
+        supplierData,
+
+      supplierOrderId:
+        supplierOrderId,
+    });
+  } catch (error: any) {
+    console.error(
+      "CALL OF DUTY TOPUP ERROR:",
+      error
+    );
+
+    /*
+     * Si hubo un error inesperado después
+     * de reservar el saldo, intentamos
+     * devolverlo.
+     */
+
+    if (
+      reservedBalance &&
+      insertedOrderId
+    ) {
+      await refundOrder(
+        insertedOrderId
+      );
+
+      try {
+        await supabaseAdmin
+          .from("topup_orders")
+          .update({
+            status:
+              "REJECTED",
+
+            failed_at:
+              new Date().toISOString(),
+          })
+          .eq(
+            "id",
+            insertedOrderId
+          );
+      } catch (updateError) {
+        console.error(
+          "FINAL ORDER UPDATE ERROR:",
+          updateError
+        );
+      }
+    }
+
+    return jsonError(
+      error?.message ||
+        "Error interno al procesar la orden.",
+      500
+    );
+  }
+  }
