@@ -188,9 +188,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const product = LEAGUE_OF_LEGENDS_ID.products.find(
-      (item: any) =>
-        String(item.id) === productId
+    // CORRECCIÓN: el catálogo utiliza offers, no products.
+    const product = LEAGUE_OF_LEGENDS_ID.offers.find(
+      (item) => String(item.id) === productId
     );
 
     if (!product) {
