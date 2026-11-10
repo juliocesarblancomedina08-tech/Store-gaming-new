@@ -1,4 +1,3 @@
-
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -16,6 +15,7 @@ export default function ResetPasswordPage() {
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
     setError("");
 
     const cleanEmail = email.trim().toLowerCase();
@@ -79,29 +79,54 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="auth-page login-page">
+
       <div className="auth-background" />
 
       <section className="auth-card login-card">
+
+        {/* BOTÓN ATRÁS */}
+
         <button
           type="button"
           className="back-button auth-back-button login-back-button"
           onClick={() => router.push("/login")}
           disabled={loading}
         >
-          <span className="back-arrow">←</span>
-          <span>ATRÁS</span>
+          <span className="back-arrow">
+            ←
+          </span>
+
+          <span>
+            ATRÁS
+          </span>
         </button>
 
+        {/* LOGO */}
+
         <div className="login-logo">
-          <div className="login-logo-cart">🛒</div>
+
+          <div className="login-logo-cart">
+            🛒
+          </div>
 
           <div className="login-logo-text">
-            <span>STORE</span>
-            <strong>GAMING</strong>
+
+            <span>
+              STORE
+            </span>
+
+            <strong>
+              GAMING
+            </strong>
+
           </div>
+
         </div>
 
+        {/* ENCABEZADO */}
+
         <div className="login-heading">
+
           <p className="auth-small">
             RECUPERACIÓN DE CUENTA
           </p>
@@ -116,19 +141,29 @@ export default function ResetPasswordPage() {
             Introduce tu Gmail para recibir un
             <strong> código de verificación</strong>.
           </p>
+
         </div>
+
+        {/* FORMULARIO */}
 
         <form
           onSubmit={handleSendCode}
           className="auth-form login-form"
         >
+
+          {/* GMAIL */}
+
           <div className="login-field">
+
             <label htmlFor="reset-email">
               GMAIL
             </label>
 
             <div className="input-wrapper login-input-wrapper">
-              <span className="input-icon">✉</span>
+
+              <span className="input-icon">
+                ✉
+              </span>
 
               <input
                 id="reset-email"
@@ -142,38 +177,69 @@ export default function ResetPasswordPage() {
                 inputMode="email"
                 disabled={loading}
               />
+
             </div>
+
           </div>
+
+          {/* ERROR */}
 
           {error && (
             <div className="auth-error login-message">
-              <span>⚠</span>
-              <p>{error}</p>
+
+              <span>
+                ⚠
+              </span>
+
+              <p>
+                {error}
+              </p>
+
             </div>
           )}
+
+          {/* VERIFICAR GMAIL */}
 
           <button
             type="submit"
             className="auth-submit login-submit"
             disabled={loading}
           >
+
             <span>
               {loading
                 ? "ENVIANDO CÓDIGO..."
                 : "VERIFICAR GMAIL"}
             </span>
 
-            {!loading && <b>→</b>}
+            {!loading && (
+              <b>
+                →
+              </b>
+            )}
+
           </button>
+
         </form>
 
+        {/* DIVISOR */}
+
         <div className="auth-divider login-divider">
+
           <span />
-          <strong>O</strong>
+
+          <strong>
+            O
+          </strong>
+
           <span />
+
         </div>
 
+        {/* INFORMACIÓN */}
+
         <div className="login-register-area">
+
           <p className="auth-register-text">
             RECIBIRÁS UN CÓDIGO DE 6 DÍGITOS
           </p>
@@ -188,12 +254,17 @@ export default function ResetPasswordPage() {
             Revisa tu bandeja de entrada y también
             la carpeta de spam.
           </p>
+
         </div>
+
+        {/* PIE */}
 
         <div className="login-footer">
           STORE GAMING • RECUPERACIÓN SEGURA
         </div>
+
       </section>
+
     </main>
   );
 }
