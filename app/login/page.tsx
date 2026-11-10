@@ -77,11 +77,8 @@ export default function LoginPage() {
       <div className="sg-login-grid" />
 
       <section className="sg-login-card">
-
-        {/* LÍNEA SUPERIOR */}
         <div className="sg-login-top-line" />
 
-        {/* BOTÓN ATRÁS */}
         <button
           type="button"
           className="sg-login-back"
@@ -92,7 +89,6 @@ export default function LoginPage() {
           VOLVER AL INICIO
         </button>
 
-        {/* LOGO */}
         <div className="sg-login-brand">
           <div className="sg-login-logo">
             <span>🛒</span>
@@ -104,7 +100,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ENCABEZADO */}
         <div className="sg-login-heading">
           <div className="sg-login-status">
             <span />
@@ -129,12 +124,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* FORMULARIO */}
         <form
           onSubmit={handleLogin}
           className="sg-login-form"
         >
-          {/* CORREO */}
           <div className="sg-login-field">
             <label htmlFor="login-email">
               CORREO ELECTRÓNICO
@@ -161,7 +154,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* CONTRASEÑA */}
           <div className="sg-login-field">
             <label htmlFor="login-password">
               CONTRASEÑA
@@ -187,7 +179,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* RECUPERAR CONTRASEÑA */}
           <div className="sg-login-forgot">
             <button
               type="button"
@@ -199,7 +190,6 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* ERROR */}
           {error && (
             <div
               className="sg-login-error"
@@ -211,7 +201,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* BOTÓN ENTRAR */}
           <button
             type="submit"
             className="sg-login-submit"
@@ -229,14 +218,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* DIVISOR */}
         <div className="sg-login-divider">
           <span />
           <p>O</p>
           <span />
         </div>
 
-        {/* REGISTRO */}
         <div className="sg-login-register">
           <p>¿TODAVÍA NO TIENES UNA CUENTA?</p>
 
@@ -250,7 +237,6 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* SEGURIDAD */}
         <div className="sg-login-security">
           <span>🔐</span>
           CONEXIÓN SEGURA
@@ -258,11 +244,9 @@ export default function LoginPage() {
           STORE GAMING
         </div>
 
-        {/* PIE */}
         <div className="sg-login-footer">
           © 2026 STORE GAMING · RECARGAS GAMING
         </div>
-
       </section>
 
       <style jsx global>{`
