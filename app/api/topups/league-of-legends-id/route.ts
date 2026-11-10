@@ -1,24 +1,18 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
 import { LEAGUE_OF_LEGENDS_ID } from "../../../../lib/games/league-of-legends-id";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const FAZERCARDS_API =
-  process.env.FAZERCARDS_API_URL ||
-  "https://api.fzr.cards/api/v2";
+  process.env.FAZERCARDS_API_URL || "https://api.fzr.cards/api/v2";
 
-const FAZERCARDS_API_KEY =
-  process.env.FAZERCARDS_API_KEY;
+const FAZERCARDS_API_KEY = process.env.FAZERCARDS_API_KEY;
 
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL!;
-
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabaseAdmin = createClient(
   SUPABASE_URL,
@@ -26,13 +20,8 @@ const supabaseAdmin = createClient(
 );
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
 
   try {
     return JSON.stringify(error);
@@ -57,16 +46,17 @@ function getSupplierOrderId(data: any): string | null {
 }
 
 function getSupplierStatus(data: any): string {
-  const status =
+  return String(
     data?.status ??
-    data?.order?.status ??
-    data?.data?.status ??
-    "";
-
-  return String(status).trim().toLowerCase();
+      data?.order?.status ??
+      data?.data?.status ??
+      ""
+  )
+    .trim()
+    .toLowerCase();
 }
 
-function isCompleted(status: string) {
+function isCompleted(status: string): boolean {
   return [
     "completed",
     "complete",
@@ -77,7 +67,7 @@ function isCompleted(status: string) {
   ].includes(status);
 }
 
-function isFailed(status: string) {
+function isFailed(status: string): boolean {
   return [
     "failed",
     "failure",
@@ -97,7 +87,9 @@ async function refundOrder(orderId: string) {
       .single();
 
   if (orderError || !order) {
-    throw new Error("No se pudo recuperar el pedido para el reembolso.");
+    throw new Error(
+      "No se pudo recuperar el pedido para el reembolso."
+    );
   }
 
   if (
@@ -114,14 +106,11 @@ async function refundOrder(orderId: string) {
     }
   );
 
-  if (refundError) {
-    throw refundError;
-  }
+  if (refundError) throw refundError;
 }
 
 export async function POST(request: Request) {
   let orderId: string | null = null;
-  let supplierOrderId: string | null = null;
 
   try {
     if (!FAZERCARDS_API_KEY) {
@@ -139,10 +128,7 @@ export async function POST(request: Request) {
 
     if (!authorization?.startsWith("Bearer ")) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "No autorizado.",
-        },
+        { ok: false, error: "No autorizado." },
         { status: 401 }
       );
     }
@@ -154,16 +140,12 @@ export async function POST(request: Request) {
 
     if (authError || !authData.user) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Sesión inválida.",
-        },
+        { ok: false, error: "Sesión inválida." },
         { status: 401 }
       );
     }
 
     const userId = authData.user.id;
-
     const body = await request.json();
 
     const gameId = String(
@@ -188,17 +170,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // CORRECCIÓN: el catálogo utiliza offers, no products.
+    // El catálogo utiliza offers, no products.
     const product = LEAGUE_OF_LEGENDS_ID.offers.find(
       (item) => String(item.id) === productId
     );
 
     if (!product) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Producto no válido.",
-        },
+        { ok: false, error: "Producto no válido." },
         { status: 400 }
       );
     }
@@ -207,10 +186,7 @@ export async function POST(request: Request) {
 
     if (!Number.isFinite(price) || price <= 0) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Precio del producto inválido.",
-        },
+        { ok: false, error: "Precio del producto inválido." },
         { status: 400 }
       );
     }
@@ -224,10 +200,7 @@ export async function POST(request: Request) {
 
     if (profileError || !profile) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "No se pudo consultar el saldo.",
-        },
+        { ok: false, error: "No se pudo consultar el saldo." },
         { status: 400 }
       );
     }
@@ -325,9 +298,11 @@ export async function POST(request: Request) {
       );
     }
 
-    supplierOrderId = getSupplierOrderId(supplierData);
+    const supplierOrderId =
+      getSupplierOrderId(supplierData);
 
-    const supplierStatus = getSupplierStatus(supplierData);
+    const supplierStatus =
+      getSupplierStatus(supplierData);
 
     if (isFailed(supplierStatus)) {
       throw new Error(
@@ -351,9 +326,7 @@ export async function POST(request: Request) {
       })
       .eq("id", orderId);
 
-    if (updateError) {
-      throw updateError;
-    }
+    if (updateError) throw updateError;
 
     return NextResponse.json({
       ok: true,
