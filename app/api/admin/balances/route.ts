@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { isAdminUser } from "../../../../lib/admin";
@@ -61,12 +62,35 @@ export async function GET(request: NextRequest) {
       0
     );
 
-    return NextResponse.json({
-      ok: true,
-      balances,
-      totalClients: balances.length,
-      totalBalance,
-    });
+    // DIAGNÓSTICO TEMPORAL DEL BALANCE DEL ADMIN
+    const adminBalance = balances.find(
+      (client) =>
+        client.email.toLowerCase() ===
+        "juliocesarblancomedina08@gmail.com"
+    );
+
+    console.log(
+      "BALANCE ADMIN JULIO:",
+      JSON.stringify(adminBalance)
+    );
+
+    return NextResponse.json(
+      {
+        ok: true,
+        balances,
+        totalClients: balances.length,
+        totalBalance,
+        diagnostic: {
+          adminEmail: adminBalance?.email ?? null,
+          adminBalance: adminBalance?.balance ?? null,
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
   } catch (error) {
     console.error("ERROR API ADMIN BALANCES:", error);
 
