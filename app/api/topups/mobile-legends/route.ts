@@ -370,7 +370,7 @@ async function findExistingOrder(
     );
   }
 
-  return data as ExistingOrder | null;
+  return data as unknown as ExistingOrder | null;
 }
 
 async function createAtomicOrder(
@@ -504,7 +504,6 @@ export async function POST(request: NextRequest) {
   let internalOrderId: string | null = null;
   let reserved = false;
   let supplierRequestStarted = false;
-  let supplierDefinitelyRejected = false;
 
   try {
     // 1. COMPROBAR CONFIGURACIÓN
@@ -853,8 +852,6 @@ export async function POST(request: NextRequest) {
       supplierData?.success === false;
 
     if (supplierRejected) {
-      supplierDefinitelyRejected = true;
-
       console.error(
         "FAZERCARDS MOBILE LEGENDS REJECTED:",
         {
@@ -1110,4 +1107,4 @@ export async function POST(request: NextRequest) {
       500
     );
   }
-    }
+}
