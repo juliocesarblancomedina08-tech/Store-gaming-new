@@ -7,12 +7,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const FAZERCARDS_API =
-  process.env.FAZERCARDS_API_URL || "https://api.fzr.cards/api/v2";
+  process.env.FAZERCARDS_API_URL ||
+  "https://api.fzr.cards/api/v2";
 
 const FAZERCARDS_API_KEY = process.env.FAZERCARDS_API_KEY;
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabaseAdmin = createClient(
   SUPABASE_URL,
@@ -51,9 +53,7 @@ function getSupplierStatus(data: any): string {
       data?.order?.status ??
       data?.data?.status ??
       ""
-  )
-    .trim()
-    .toLowerCase();
+  ).trim().toLowerCase();
 }
 
 function isCompleted(status: string): boolean {
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // El catálogo utiliza offers, no products.
+    // IMPORTANTE: el catálogo utiliza offers, no products.
     const product = LEAGUE_OF_LEGENDS_ID.offers.find(
       (item) => String(item.id) === productId
     );
@@ -241,7 +241,8 @@ export async function POST(request: Request) {
         .single();
 
     if (orderError || !order) {
-      throw orderError || new Error("No se pudo crear el pedido.");
+      throw orderError ||
+        new Error("No se pudo crear el pedido.");
     }
 
     orderId = String(order.id);
