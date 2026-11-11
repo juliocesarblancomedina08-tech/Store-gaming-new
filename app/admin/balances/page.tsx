@@ -11,19 +11,6 @@ type ClientBalance = {
   balance: number;
 };
 
-type Diagnostic = {
-  directProfile: {
-    id?: string;
-    email?: string;
-    balance?: number | string;
-  } | null;
-  profileInList: {
-    id?: string;
-    email?: string;
-    balance?: number | string;
-  } | null;
-};
-
 const ADMIN_EMAIL = "juliocesarblancomedina08@gmail.com";
 
 export default function AdminBalancesPage() {
@@ -33,12 +20,10 @@ export default function AdminBalancesPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [diagnostic, setDiagnostic] = useState<Diagnostic | null>(null);
 
   const loadBalances = useCallback(async () => {
     setLoading(true);
     setError("");
-    setDiagnostic(null);
 
     try {
       const {
@@ -73,8 +58,6 @@ export default function AdminBalancesPage() {
           data.error || "No se pudieron cargar los saldos."
         );
       }
-
-      setDiagnostic(data.diagnostic || null);
 
       setClients(
         Array.isArray(data.balances)
@@ -123,7 +106,7 @@ export default function AdminBalancesPage() {
     );
   }, [clients, search]);
 
-  const formatBalance = (balance: number | string) =>
+  const formatBalance = (balance: number) =>
     (Number(balance) || 0).toFixed(4);
 
   return (
@@ -239,48 +222,6 @@ export default function AdminBalancesPage() {
 
         .summary-value.money {
           color: #43f28a;
-        }
-
-        .diagnostic-card {
-          margin-bottom: 24px;
-          padding: 18px;
-          border: 1px solid #e50914;
-          border-radius: 13px;
-          background: #151010;
-        }
-
-        .diagnostic-card h3 {
-          margin: 0 0 14px;
-          color: #ff6269;
-          font-size: 16px;
-        }
-
-        .diagnostic-row {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-          padding: 12px 0;
-          border-top: 1px solid #383030;
-        }
-
-        .diagnostic-label {
-          color: #bbb;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .diagnostic-value {
-          color: #43f28a;
-          font-size: 21px;
-          font-weight: 900;
-          overflow-wrap: anywhere;
-        }
-
-        .diagnostic-note {
-          color: #ddd;
-          font-size: 13px;
-          line-height: 1.5;
-          margin-top: 10px;
         }
 
         .search-box {
@@ -455,69 +396,28 @@ export default function AdminBalancesPage() {
           </button>
         </div>
 
-        <section className="summary-card" aria-label="Resumen de saldos">
+        <section
+          className="summary-card"
+          aria-label="Resumen de saldos"
+        >
           <div className="summary-item">
-            <span className="summary-label">Total de clientes</span>
+            <span className="summary-label">
+              Total de clientes
+            </span>
             <strong className="summary-value">
               {loading ? "…" : clients.length}
             </strong>
           </div>
 
           <div className="summary-item">
-            <span className="summary-label">Saldo total</span>
+            <span className="summary-label">
+              Saldo total
+            </span>
             <strong className="summary-value money">
               {loading ? "…" : formatBalance(totalBalance)}
             </strong>
           </div>
         </section>
-
-        {/* DIAGNOSTICO TEMPORAL */}
-        {!loading && (
-          <section className="diagnostic-card">
-            <h3>Diagnóstico temporal del saldo</h3>
-
-            {!diagnostic ? (
-              <div className="diagnostic-note">
-                La API no está enviando los datos de diagnóstico.
-                Necesitamos revisar el archivo de la API.
-              </div>
-            ) : (
-              <>
-                <div className="diagnostic-row">
-                  <span className="diagnostic-label">
-                    SALDO DIRECTO DE SUPABASE
-                  </span>
-                  <strong className="diagnostic-value">
-                    {diagnostic.directProfile
-                      ? formatBalance(
-                          diagnostic.directProfile.balance ?? 0
-                        )
-                      : "No encontrado"}
-                  </strong>
-                </div>
-
-                <div className="diagnostic-row">
-                  <span className="diagnostic-label">
-                    SALDO DEL ADMIN EN LA LISTA
-                  </span>
-                  <strong className="diagnostic-value">
-                    {diagnostic.profileInList
-                      ? formatBalance(
-                          diagnostic.profileInList.balance ?? 0
-                        )
-                      : "No encontrado"}
-                  </strong>
-                </div>
-
-                <div className="diagnostic-note">
-                  Correo directo: {diagnostic.directProfile?.email || "No disponible"}
-                  <br />
-                  Correo en lista: {diagnostic.profileInList?.email || "No disponible"}
-                </div>
-              </>
-            )}
-          </section>
-        )}
 
         <input
           className="search-box"
@@ -558,14 +458,20 @@ export default function AdminBalancesPage() {
                 }
               >
                 <div className="client-info">
-                  <span className="field-label">Usuario</span>
+                  <span className="field-label">
+                    Usuario
+                  </span>
+
                   <span className="client-email">
                     {client.email || "Sin correo"}
                   </span>
                 </div>
 
                 <div className="client-balance">
-                  <span className="field-label">Balance</span>
+                  <span className="field-label">
+                    Balance
+                  </span>
+
                   <span className="client-money">
                     {formatBalance(client.balance)}
                   </span>
