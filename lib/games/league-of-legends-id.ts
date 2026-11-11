@@ -1,9 +1,11 @@
+
 export type LeagueOfLegendsIdOffer = {
   id: string;
   name: string;
   price: number;
   supplierPrice: number;
   icon: string;
+  description?: string;
 };
 
 export const LEAGUE_OF_LEGENDS_ID = {
