@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+
 import {
   FC_MOBILE_ID,
   FcMobileIdOffer,
@@ -24,6 +25,52 @@ export default function FcMobileIdPage() {
   const [orderStatus, setOrderStatus] = useState("");
 
   const [processing, setProcessing] = useState(false);
+  const [vipActive, setVipActive] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkVip() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          if (!cancelled) setVipActive(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("vip_expires_at")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const expiresAt = data?.vip_expires_at
+          ? new Date(data.vip_expires_at).getTime()
+          : 0;
+
+        if (!cancelled) {
+          setVipActive(expiresAt > Date.now());
+        }
+      } catch (err) {
+        console.error("ERROR CONSULTANDO VIP:", err);
+
+        if (!cancelled) {
+          setVipActive(false);
+        }
+      }
+    }
+
+    void checkVip();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function selectOffer(offer: FcMobileIdOffer) {
     setSelectedOffer(offer);
@@ -150,6 +197,9 @@ export default function FcMobileIdPage() {
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
+    if (processing) return;
+
     void createOrder();
   }
 
@@ -162,8 +212,8 @@ export default function FcMobileIdPage() {
           color: #fff;
           background:
             linear-gradient(
-              rgba(0, 0, 0, 0.72),
-              rgba(0, 0, 0, 0.86)
+              rgba(0, 0, 0, 0.76),
+              rgba(0, 0, 0, 0.9)
             ),
             url("/images/battle-royale-bg.jpg")
               center / cover fixed;
@@ -174,12 +224,12 @@ export default function FcMobileIdPage() {
           position: sticky;
           top: 0;
           z-index: 20;
-          display: flex;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 13px 16px;
-          background: rgba(5, 5, 5, 0.94);
+          gap: 8px;
+          padding: 13px 14px;
+          background: rgba(5, 5, 5, 0.96);
           border-bottom: 1px solid
             rgba(255, 255, 255, 0.08);
           backdrop-filter: blur(12px);
@@ -187,24 +237,46 @@ export default function FcMobileIdPage() {
 
         .fc-mobile-id-title {
           margin: 0;
-          font-size: 20px;
+          text-align: center;
+          white-space: nowrap;
+          font-size: 19px;
           font-weight: 900;
-          letter-spacing: 0.3px;
+          letter-spacing: 0.4px;
         }
 
         .fc-mobile-id-back {
-          border: 0;
+          justify-self: start;
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 10px;
           padding: 9px 12px;
           color: #fff;
-          background: rgba(255, 255, 255, 0.08);
-          font-size: 13px;
+          background: rgba(255, 255, 255, 0.07);
+          font-size: 12px;
           font-weight: 800;
           cursor: pointer;
         }
 
+        .fc-mobile-id-vip {
+          justify-self: end;
+          border: 1px solid rgba(255, 190, 60, 0.35);
+          border-radius: 10px;
+          padding: 9px 10px;
+          color: #ffd36a;
+          background: rgba(120, 75, 0, 0.2);
+          font-size: 11px;
+          font-weight: 900;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+
+        .fc-mobile-id-vip.active {
+          color: #ffe39a;
+          background: rgba(160, 105, 0, 0.2);
+          cursor: default;
+        }
+
         .fc-mobile-id-container {
-          width: min(720px, 100%);
+          width: min(680px, 100%);
           margin: 0 auto;
           padding: 18px 14px 0;
         }
@@ -214,12 +286,9 @@ export default function FcMobileIdPage() {
           width: 100%;
           height: 210px;
           overflow: hidden;
-          border-radius: 18px;
+          border-radius: 16px;
           background: #111;
-          border: 1px solid
-            rgba(255, 255, 255, 0.1);
-          box-shadow:
-            0 12px 35px rgba(0, 0, 0, 0.5);
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .fc-mobile-id-banner img {
@@ -235,16 +304,15 @@ export default function FcMobileIdPage() {
           display: flex;
           align-items: flex-end;
           padding: 18px;
-          background:
-            linear-gradient(
-              transparent 30%,
-              rgba(0, 0, 0, 0.82)
-            );
+          background: linear-gradient(
+            transparent 30%,
+            rgba(0, 0, 0, 0.85)
+          );
         }
 
         .fc-mobile-id-banner-text span {
           display: block;
-          color: #ff3b3b;
+          color: #ff4545;
           font-size: 11px;
           font-weight: 900;
           letter-spacing: 1.5px;
@@ -260,11 +328,10 @@ export default function FcMobileIdPage() {
         .fc-mobile-id-note {
           margin-top: 14px;
           padding: 14px;
-          border-radius: 14px;
-          background: rgba(0, 0, 0, 0.78);
-          border: 1px solid
-            rgba(255, 255, 255, 0.08);
-          color: #ddd;
+          border-radius: 13px;
+          background: rgba(8, 8, 8, 0.88);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #ccc;
           font-size: 13px;
           line-height: 1.55;
         }
@@ -275,7 +342,7 @@ export default function FcMobileIdPage() {
 
         .fc-mobile-id-note-warning {
           margin-top: 9px;
-          color: #ff6b6b;
+          color: #ff7070;
           font-weight: 800;
         }
 
@@ -287,29 +354,28 @@ export default function FcMobileIdPage() {
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          border: 1px solid
-            rgba(255, 255, 255, 0.1);
-          border-radius: 14px;
-          background: rgba(10, 10, 10, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          background: rgba(9, 9, 9, 0.94);
           color: #fff;
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 900;
           cursor: pointer;
         }
 
         .fc-mobile-id-offers-toggle span:last-child {
-          color: #ff3030;
+          color: #ff4545;
           font-size: 20px;
         }
 
         .fc-mobile-id-offers-section {
-          margin-top: 10px;
+          margin-top: 12px;
         }
 
         .fc-mobile-id-offers-heading {
           margin: 0 0 10px;
           padding: 0 3px;
-          font-size: 17px;
+          font-size: 16px;
           font-weight: 900;
         }
 
@@ -326,29 +392,23 @@ export default function FcMobileIdPage() {
           justify-content: space-between;
           gap: 12px;
           padding: 13px;
-          border: 1px solid
-            rgba(255, 255, 255, 0.09);
-          border-radius: 13px;
-          background: rgba(5, 5, 5, 0.88);
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 12px;
+          background: rgba(5, 5, 5, 0.91);
           color: #fff;
           cursor: pointer;
           text-align: left;
-          transition:
-            transform 0.15s ease,
-            border-color 0.15s ease,
+          transition: border-color 0.15s ease,
             background 0.15s ease;
         }
 
         .fc-mobile-id-offer:hover {
-          transform: translateY(-1px);
-          border-color: rgba(255, 48, 48, 0.65);
+          border-color: rgba(255, 55, 55, 0.65);
         }
 
         .fc-mobile-id-offer.selected {
-          border-color: #ff3030;
-          background: rgba(90, 0, 0, 0.42);
-          box-shadow:
-            0 0 0 1px rgba(255, 48, 48, 0.2);
+          border-color: #e52c2c;
+          background: rgba(85, 0, 0, 0.32);
         }
 
         .fc-mobile-id-offer-left {
@@ -365,14 +425,8 @@ export default function FcMobileIdPage() {
           display: grid;
           place-items: center;
           border-radius: 10px;
-          background:
-            linear-gradient(
-              145deg,
-              rgba(255, 48, 48, 0.25),
-              rgba(255, 255, 255, 0.06)
-            );
-          border: 1px solid
-            rgba(255, 48, 48, 0.18);
+          background: rgba(220, 35, 35, 0.13);
+          border: 1px solid rgba(255, 55, 55, 0.2);
           font-size: 19px;
         }
 
@@ -384,7 +438,7 @@ export default function FcMobileIdPage() {
 
         .fc-mobile-id-offer-description {
           margin-top: 3px;
-          color: #aaa;
+          color: #999;
           font-size: 11px;
           line-height: 1.3;
         }
@@ -399,10 +453,10 @@ export default function FcMobileIdPage() {
         .fc-mobile-id-order-section {
           margin-top: 16px;
           padding: 16px;
-          border-radius: 15px;
-          background: rgba(0, 0, 0, 0.82);
-          border: 1px solid
-            rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          background: rgba(5, 5, 5, 0.92);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          scroll-margin-top: 85px;
         }
 
         .fc-mobile-id-section-title {
@@ -414,10 +468,9 @@ export default function FcMobileIdPage() {
         .fc-mobile-id-selected {
           margin-bottom: 14px;
           padding: 12px;
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid
-            rgba(255, 255, 255, 0.08);
+          border-radius: 11px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .fc-mobile-id-selected-label {
@@ -442,7 +495,7 @@ export default function FcMobileIdPage() {
 
         .fc-mobile-id-selected-price {
           font-weight: 900;
-          color: #ff4b4b;
+          color: #ff5555;
         }
 
         .fc-mobile-id-form {
@@ -462,19 +515,16 @@ export default function FcMobileIdPage() {
           box-sizing: border-box;
           margin-top: 6px;
           padding: 13px 14px;
-          border-radius: 11px;
-          border: 1px solid
-            rgba(255, 255, 255, 0.12);
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
           outline: none;
-          background: rgba(255, 255, 255, 0.06);
+          background: rgba(255, 255, 255, 0.05);
           color: #fff;
           font-size: 15px;
         }
 
         .fc-mobile-id-input:focus {
-          border-color: #ff3030;
-          box-shadow:
-            0 0 0 2px rgba(255, 48, 48, 0.12);
+          border-color: #e52c2c;
         }
 
         .fc-mobile-id-input::placeholder {
@@ -484,8 +534,7 @@ export default function FcMobileIdPage() {
         .fc-mobile-id-error {
           padding: 11px 12px;
           border-radius: 10px;
-          border: 1px solid
-            rgba(255, 50, 50, 0.35);
+          border: 1px solid rgba(255, 50, 50, 0.35);
           background: rgba(110, 0, 0, 0.3);
           color: #ff6868;
           font-size: 13px;
@@ -496,35 +545,27 @@ export default function FcMobileIdPage() {
           width: 100%;
           padding: 14px;
           border: 0;
-          border-radius: 12px;
-          background: #e52525;
+          border-radius: 10px;
+          background: #d92727;
           color: #fff;
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 900;
           cursor: pointer;
-          transition:
-            transform 0.15s ease,
-            opacity 0.15s ease;
-        }
-
-        .fc-mobile-id-create-button:hover {
-          transform: translateY(-1px);
         }
 
         .fc-mobile-id-create-button:disabled {
           opacity: 0.55;
           cursor: not-allowed;
-          transform: none;
         }
 
         .fc-mobile-id-success {
           margin-top: 16px;
           padding: 18px 16px;
-          border-radius: 15px;
-          background: rgba(0, 45, 20, 0.82);
-          border: 1px solid
-            rgba(57, 255, 130, 0.25);
+          border-radius: 14px;
+          background: rgba(0, 40, 18, 0.88);
+          border: 1px solid rgba(57, 255, 130, 0.25);
           text-align: center;
+          scroll-margin-top: 85px;
         }
 
         .fc-mobile-id-success-icon {
@@ -556,10 +597,11 @@ export default function FcMobileIdPage() {
         .fc-mobile-id-order-number {
           margin-top: 10px;
           padding: 11px;
-          border-radius: 10px;
+          border-radius: 9px;
           background: rgba(0, 0, 0, 0.35);
           font-weight: 900;
           word-break: break-word;
+          font-size: 13px;
         }
 
         .fc-mobile-id-success-actions {
@@ -571,26 +613,21 @@ export default function FcMobileIdPage() {
 
         .fc-mobile-id-success-button {
           padding: 12px 10px;
-          border: 0;
-          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 9px;
           color: #fff;
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.08);
           font-size: 13px;
           font-weight: 900;
           cursor: pointer;
         }
 
-        .fc-mobile-id-success-button:hover {
-          background: rgba(255, 255, 255, 0.16);
-        }
-
         .fc-mobile-id-service {
           margin-top: 16px;
           padding: 15px;
-          border-radius: 14px;
-          background: rgba(0, 0, 0, 0.72);
-          border: 1px solid
-            rgba(255, 255, 255, 0.08);
+          border-radius: 13px;
+          background: rgba(5, 5, 5, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .fc-mobile-id-service-title {
@@ -602,7 +639,7 @@ export default function FcMobileIdPage() {
         .fc-mobile-id-service-list {
           margin: 0;
           padding-left: 18px;
-          color: #bbb;
+          color: #aaa;
           font-size: 12px;
           line-height: 1.7;
         }
@@ -616,11 +653,22 @@ export default function FcMobileIdPage() {
 
         @media (max-width: 480px) {
           .fc-mobile-id-header {
-            padding: 12px;
+            padding: 11px 9px;
+            gap: 5px;
           }
 
           .fc-mobile-id-title {
-            font-size: 17px;
+            font-size: 15px;
+          }
+
+          .fc-mobile-id-back {
+            padding: 9px 8px;
+            font-size: 11px;
+          }
+
+          .fc-mobile-id-vip {
+            padding: 9px 7px;
+            font-size: 9px;
           }
 
           .fc-mobile-id-container {
@@ -629,7 +677,6 @@ export default function FcMobileIdPage() {
 
           .fc-mobile-id-banner {
             height: 175px;
-            border-radius: 15px;
           }
 
           .fc-mobile-id-banner-text strong {
@@ -669,17 +716,22 @@ export default function FcMobileIdPage() {
         </button>
 
         <h1 className="fc-mobile-id-title">
-          EAFC Mobile 🇮🇩
+          EAFC MOBILE 🇮🇩
         </h1>
 
-        <button
-          type="button"
-          className="fc-mobile-id-back"
-          onClick={() => router.push("/orders")}
-          aria-label="Pedidos"
-        >
-          🛒
-        </button>
+        {vipActive ? (
+          <div className="fc-mobile-id-vip active">
+            ⭐ VIP ACTIVO
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="fc-mobile-id-vip"
+            onClick={() => router.push("/vip")}
+          >
+            ⭐ COMPRAR VIP
+          </button>
+        )}
       </header>
 
       <div className="fc-mobile-id-container">
@@ -722,13 +774,8 @@ export default function FcMobileIdPage() {
           className="fc-mobile-id-offers-toggle"
           onClick={() => setShowOffers((value) => !value)}
         >
-          <span>
-            ✏️ PRESIONE PARA VER OFERTAS
-          </span>
-
-          <span>
-            {showOffers ? "⌃" : "⌄"}
-          </span>
+          <span>✏️ PRESIONE PARA VER OFERTAS</span>
+          <span>{showOffers ? "⌃" : "⌄"}</span>
         </button>
 
         {showOffers && (
@@ -780,155 +827,155 @@ export default function FcMobileIdPage() {
         )}
 
         {selectedOffer && !orderCreated && (
-  <section
-    id="order-section"
-    className="fc-mobile-id-order-section"
-  >
-    <h2 className="fc-mobile-id-section-title">
-      COMPLETA TU PEDIDO
-    </h2>
+          <section
+            id="order-section"
+            className="fc-mobile-id-order-section"
+          >
+            <h2 className="fc-mobile-id-section-title">
+              COMPLETA TU PEDIDO
+            </h2>
 
-    <div className="fc-mobile-id-selected">
-      <div className="fc-mobile-id-selected-label">
-        Oferta seleccionada
-      </div>
+            <div className="fc-mobile-id-selected">
+              <div className="fc-mobile-id-selected-label">
+                Oferta seleccionada
+              </div>
 
-      <div className="fc-mobile-id-selected-row">
-        <div className="fc-mobile-id-selected-name">
-          {selectedOffer.name}
-        </div>
+              <div className="fc-mobile-id-selected-row">
+                <div className="fc-mobile-id-selected-name">
+                  {selectedOffer.name}
+                </div>
 
-        <div className="fc-mobile-id-selected-price">
-          ${Number(selectedOffer.price).toFixed(2)}
-        </div>
-      </div>
-    </div>
+                <div className="fc-mobile-id-selected-price">
+                  ${Number(selectedOffer.price).toFixed(2)}
+                </div>
+              </div>
+            </div>
 
-    <form
-      className="fc-mobile-id-form"
-      onSubmit={handleSubmit}
-    >
-      <label className="fc-mobile-id-label">
-        PLAYER ID
+            <form
+              className="fc-mobile-id-form"
+              onSubmit={handleSubmit}
+            >
+              <label className="fc-mobile-id-label">
+                PLAYER ID
 
-        <input
-          className="fc-mobile-id-input"
-          type="text"
-          inputMode="numeric"
-          value={playerId}
-          onChange={(event) => {
-            setPlayerId(
-              event.target.value.replace(/\D/g, "")
-            );
-            setError("");
-          }}
-          placeholder="Ingrese su Player ID"
-          maxLength={20}
-          autoComplete="off"
-          disabled={processing}
-        />
-      </label>
+                <input
+                  className="fc-mobile-id-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={playerId}
+                  onChange={(event) => {
+                    setPlayerId(
+                      event.target.value.replace(/\D/g, "")
+                    );
+                    setError("");
+                  }}
+                  placeholder="Ingrese su Player ID"
+                  maxLength={20}
+                  autoComplete="off"
+                  disabled={processing}
+                />
+              </label>
 
-      <div className="fc-mobile-id-note">
-        Introduce únicamente el Player ID numérico
-        de tu cuenta de EAFC Mobile Indonesia.
-      </div>
+              <div className="fc-mobile-id-note">
+                Introduce únicamente el Player ID numérico
+                de tu cuenta de EAFC Mobile Indonesia.
+              </div>
 
-      {error && (
-        <div className="fc-mobile-id-error">
-          {error}
-        </div>
-      )}
+              {error && (
+                <div className="fc-mobile-id-error">
+                  {error}
+                </div>
+              )}
 
-      <button
-        type="submit"
-        className="fc-mobile-id-create-button"
-        disabled={processing}
-      >
-        {processing
-          ? "PROCESANDO PEDIDO..."
-          : "CREAR PEDIDO"}
-      </button>
-    </form>
-  </section>
-)}
+              <button
+                type="submit"
+                className="fc-mobile-id-create-button"
+                disabled={processing}
+              >
+                {processing
+                  ? "PROCESANDO PEDIDO..."
+                  : "CREAR PEDIDO"}
+              </button>
+            </form>
+          </section>
+        )}
 
-{orderCreated && (
-  <section
-    id="success-section"
-    className="fc-mobile-id-success"
-  >
-    <div className="fc-mobile-id-success-icon">
-      ✓
-    </div>
+        {orderCreated && (
+          <section
+            id="success-section"
+            className="fc-mobile-id-success"
+          >
+            <div className="fc-mobile-id-success-icon">
+              ✓
+            </div>
 
-    <h2 className="fc-mobile-id-success-title">
-      ¡ORDEN CREADA!
-    </h2>
+            <h2 className="fc-mobile-id-success-title">
+              ¡ORDEN CREADA!
+            </h2>
 
-    <p className="fc-mobile-id-success-text">
-      Tu pedido fue registrado correctamente.
-      El proveedor procesará la recarga.
-    </p>
+            <p className="fc-mobile-id-success-text">
+              Tu pedido fue registrado correctamente.
+              El proveedor procesará la recarga.
+            </p>
 
-    {orderNumber && (
-      <div className="fc-mobile-id-order-number">
-        🧾 Orden: {orderNumber}
-      </div>
-    )}
+            {orderNumber && (
+              <div className="fc-mobile-id-order-number">
+                🧾 Orden: {orderNumber}
+              </div>
+            )}
 
-    {supplierOrderId && (
-      <div className="fc-mobile-id-order-number">
-        Proveedor: {supplierOrderId}
-      </div>
-    )}
+            {supplierOrderId && (
+              <div className="fc-mobile-id-order-number">
+                Proveedor: {supplierOrderId}
+              </div>
+            )}
 
-    {orderStatus && (
-      <div className="fc-mobile-id-order-number">
-        Estado: {orderStatus}
-      </div>
-    )}
+            {orderStatus && (
+              <div className="fc-mobile-id-order-number">
+                Estado: {orderStatus}
+              </div>
+            )}
 
-    <div className="fc-mobile-id-success-actions">
-      <button
-        type="button"
-        className="fc-mobile-id-success-button"
-        onClick={() => router.push("/orders")}
-      >
-        📋 Revisar orden
-      </button>
+            <div className="fc-mobile-id-success-actions">
+              <button
+                type="button"
+                className="fc-mobile-id-success-button"
+                onClick={() => router.push("/orders")}
+              >
+                📋 Revisar orden
+              </button>
 
-      <button
-        type="button"
-        className="fc-mobile-id-success-button"
-        onClick={() => router.push("/top-up")}
-      >
-        🛒 Volver a la tienda
-      </button>
-    </div>
-  </section>
-)}
+              <button
+                type="button"
+                className="fc-mobile-id-success-button"
+                onClick={() => router.push("/top-up")}
+              >
+                🛒 Volver a la tienda
+              </button>
+            </div>
+          </section>
+        )}
 
-<section className="fc-mobile-id-service">
-  <h3 className="fc-mobile-id-service-title">
-    ⚡ SERVICIO DE RECARGA
-  </h3>
+        <section className="fc-mobile-id-service">
+          <h3 className="fc-mobile-id-service-title">
+            ⚡ SERVICIO DE RECARGA
+          </h3>
 
-  <ul className="fc-mobile-id-service-list">
-    <li>Entrega directa a la cuenta.</li>
-    <li>Región: Indonesia.</li>
-    <li>Necesitas introducir tu Player ID.</li>
-    <li>
-      Los productos están bloqueados por región.
-    </li>
-  </ul>
-</section>
+          <ul className="fc-mobile-id-service-list">
+            <li>Entrega directa a la cuenta.</li>
+            <li>Región: Indonesia.</li>
+            <li>Necesitas introducir tu Player ID.</li>
+            <li>
+              Los productos están bloqueados por región.
+            </li>
+          </ul>
+        </section>
 
-<footer className="fc-mobile-id-footer">
-  <strong>🛒STORE GAMING🎮</strong>
-  <br />
-  EAFC Mobile (ID)
-</footer>
+        <footer className="fc-mobile-id-footer">
+          <strong>🛒STORE GAMING🎮</strong>
+          <br />
+          EAFC Mobile (ID)
+        </footer>
       </div>
     </main>
   );
