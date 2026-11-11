@@ -1,5 +1,13 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
+
+import {
+  MOBILE_LEGENDS_CATEGORY_ID,
+  MOBILE_LEGENDS_GAME_NAME,
+  calculateMobileLegendsPrice,
+  getMobileLegendsOffer,
+} from "../../../../lib/games/mobile-legends";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,18 +17,6 @@ const FAZER_API_BASE = (
   process.env.FAZERCARDS_API_URL ||
   "https://api.fzr.cards/api/v2"
 ).replace(/\/+$/, "");
-
-const CATEGORY_ID = "mobile_legends_united_states";
-const GAME_NAME = "Mobile Legends (United States)";
-
-const NORMAL_MARKUP = 0.20;
-const VIP_MARKUP = 0.08;
-
-type Offer = {
-  id: string;
-  name: string;
-  supplierPrice: number;
-};
 
 type ExistingOrder = {
   id: string;
@@ -44,59 +40,6 @@ type AtomicOrderResult = {
   created: boolean;
 };
 
-const OFFERS: Offer[] = [
-  {
-    id: "51_5_diamonds",
-    name: "51 + 5 Diamonds",
-    supplierPrice: 0.8665,
-  },
-  {
-    id: "weekly_diamond_pass",
-    name: "Weekly Diamond Pass",
-    supplierPrice: 1.7430,
-  },
-  {
-    id: "253_25_diamonds",
-    name: "253 + 25 Diamonds",
-    supplierPrice: 4.3423,
-  },
-  {
-    id: "505_66_diamonds",
-    name: "505 + 66 Diamonds",
-    supplierPrice: 8.7048,
-  },
-  {
-    id: "1010_182_diamonds",
-    name: "1010 + 182 Diamonds",
-    supplierPrice: 17.3391,
-  },
-  {
-    id: "1515_273_diamonds",
-    name: "1515 + 273 Diamonds",
-    supplierPrice: 25.9935,
-  },
-  {
-    id: "2525_480_diamonds",
-    name: "2525 + 480 Diamonds",
-    supplierPrice: 43.3225,
-  },
-  {
-    id: "3030_576_diamonds",
-    name: "3030 + 576 Diamonds",
-    supplierPrice: 51.9870,
-  },
-  {
-    id: "4008_802_diamonds",
-    name: "4008 + 802 Diamonds",
-    supplierPrice: 69.3160,
-  },
-  {
-    id: "5010_1002_diamonds",
-    name: "5010 + 1002 Diamonds",
-    supplierPrice: 86.6450,
-  },
-];
-
 function jsonError(message: string, status = 400) {
   return NextResponse.json(
     {
@@ -105,19 +48,6 @@ function jsonError(message: string, status = 400) {
     },
     { status }
   );
-}
-
-function calculatePrice(
-  supplierPrice: number,
-  vipActive: boolean
-): number {
-  const markup = vipActive ? VIP_MARKUP : NORMAL_MARKUP;
-
-  return Number((supplierPrice + markup).toFixed(4));
-}
-
-function getOffer(offerId: string): Offer | null {
-  return OFFERS.find((offer) => offer.id === offerId) ?? null;
 }
 
 function isSuccessfulSupplierStatus(status: string): boolean {
@@ -269,11 +199,11 @@ export async function GET(request: NextRequest) {
 
     const vipActive = await getVipStatus(user.id);
 
-    const offers = OFFERS.map((offer) => ({
+    const offers = MOBILE_LEGENDS_OFFERS.map((offer) => ({
       offer_id: offer.id,
       name: offer.name,
       supplier_price: offer.supplierPrice,
-      retail_price: calculatePrice(
+      retail_price: calculateMobileLegendsPrice(
         offer.supplierPrice,
         vipActive
       ),
@@ -282,8 +212,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      game: GAME_NAME,
-      category_id: CATEGORY_ID,
+      game: MOBILE_LEGENDS_GAME_NAME,
+      category_id: MOBILE_LEGENDS_CATEGORY_ID,
       currency: "USD",
       vip_active: vipActive,
       fields: [
@@ -381,7 +311,7 @@ export async function POST(request: NextRequest) {
      * 4. VALIDAR OFERTA
      */
 
-    const offer = getOffer(offerId);
+    const offer = getMobileLegendsOffer(offerId);
 
     if (!offer) {
       return jsonError(
@@ -439,7 +369,7 @@ export async function POST(request: NextRequest) {
 
     const supplierPrice = Number(offer.supplierPrice);
 
-    const retailPrice = calculatePrice(
+    const retailPrice = calculateMobileLegendsPrice(
       supplierPrice,
       vipActive
     );
@@ -459,11 +389,8 @@ export async function POST(request: NextRequest) {
     /*
      * 10. CREAR PEDIDO Y RESERVAR SALDO
      *
-     * IMPORTANTE:
      * Esta función realiza ambas operaciones
      * dentro de una sola transacción.
-     *
-     * NO llamar a reserve_topup_balance después.
      */
 
     const username =
@@ -479,8 +406,8 @@ export async function POST(request: NextRequest) {
           p_user_id: user.id,
           p_username: String(username),
           p_email: user.email ?? null,
-          p_game: GAME_NAME,
-          p_category_id: CATEGORY_ID,
+          p_game: MOBILE_LEGENDS_GAME_NAME,
+          p_category_id: MOBILE_LEGENDS_CATEGORY_ID,
           p_offer_id: offer.id,
           p_offer_name: offer.name,
           p_player_id: playerId,
@@ -601,7 +528,6 @@ export async function POST(request: NextRequest) {
 
       /*
        * No reenviar una orden existente al proveedor.
-       * Evita duplicar compras cuando el usuario reintenta.
        */
 
       return NextResponse.json({
@@ -630,13 +556,6 @@ export async function POST(request: NextRequest) {
     let supplierText: string;
 
     try {
-      /*
-       * Desde este punto no se debe devolver automáticamente
-       * el saldo por un error de conexión.
-       *
-       * El proveedor podría haber recibido el pedido.
-       */
-
       supplierRequestStarted = true;
 
       supplierResponse = await fetch(
@@ -651,7 +570,7 @@ export async function POST(request: NextRequest) {
             "User-Agent": "STORE-GAMING/1.0",
           },
           body: JSON.stringify({
-            category_id: CATEGORY_ID,
+            category_id: MOBILE_LEGENDS_CATEGORY_ID,
             offer_id: offer.id,
             fields: {
               player_id: playerId,
@@ -760,11 +679,6 @@ export async function POST(request: NextRequest) {
           failedUpdateError
         );
 
-        /*
-         * Si el ID del proveedor provoca una colisión,
-         * intentamos guardar el rechazo sin ese ID.
-         */
-
         const { error: fallbackError } =
           await updateOrder(internalOrderId, {
             status: "FAILED",
@@ -812,10 +726,6 @@ export async function POST(request: NextRequest) {
 
     /*
      * 15. RESPUESTA HTTP NO EXITOSA O AMBIGUA
-     *
-     * No devolvemos el saldo automáticamente.
-     * Una respuesta HTTP no exitosa no demuestra por sí sola
-     * que el proveedor no haya procesado el pedido.
      */
 
     if (!supplierResponse.ok) {
@@ -895,10 +805,6 @@ export async function POST(request: NextRequest) {
 
     /*
      * 17. GUARDAR PEDIDO ANTES DE COMPLETARLO
-     *
-     * Se guarda como pendiente para que complete_topup_order
-     * pueda encontrarlo y registrar también la recompensa
-     * de primera compra, si corresponde.
      */
 
     const { error: supplierSaveError } =
@@ -913,11 +819,6 @@ export async function POST(request: NextRequest) {
         "ERROR GUARDANDO ID DEL PROVEEDOR:",
         supplierSaveError
       );
-
-      /*
-       * Una colisión de supplier_order_id no debe provocar
-       * un reembolso automático.
-       */
 
       return NextResponse.json(
         {
@@ -966,10 +867,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      /*
-       * Comprobar el estado real después de ejecutar el RPC.
-       */
-
       const { data: completedOrder, error: completedError } =
         await supabaseAdmin
           .from("topup_orders")
@@ -977,7 +874,10 @@ export async function POST(request: NextRequest) {
           .eq("id", internalOrderId)
           .maybeSingle();
 
-      if (completedError || completedOrder?.status !== "COMPLETED") {
+      if (
+        completedError ||
+        completedOrder?.status !== "COMPLETED"
+      ) {
         console.error(
           "NO SE PUDO CONFIRMAR LA FINALIZACIÓN:",
           completedError,
@@ -1085,4 +985,4 @@ export async function POST(request: NextRequest) {
       500
     );
   }
-    }
+}
