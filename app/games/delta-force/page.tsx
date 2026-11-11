@@ -28,9 +28,7 @@ export default function DeltaForcePage() {
   const [vipActive, setVipActive] = useState(false);
 
   /*
-   * ============================================================
    * COMPROBAR MEMBRESÍA VIP
-   * ============================================================
    */
 
   useEffect(() => {
@@ -84,9 +82,7 @@ export default function DeltaForcePage() {
   }, []);
 
   /*
-   * ============================================================
    * CALCULAR PRECIOS
-   * ============================================================
    */
 
   function getOfferPrice(offer: DeltaForceOffer) {
@@ -115,6 +111,15 @@ export default function DeltaForcePage() {
     setOrderNumber("");
     setSupplierOrderId("");
     setOrderStatus("");
+
+    setTimeout(() => {
+      document
+        .getElementById("delta-force-order-form")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 100);
   }
 
   async function createOrder() {
@@ -227,33 +232,75 @@ export default function DeltaForcePage() {
     void createOrder();
   }
 
+  function goToStore() {
+    router.push("/top-up");
+  }
+
+  function goToOrders() {
+    router.push("/orders");
+  }
+
+  function goToVip() {
+    router.push("/vip");
+  }
+
   return (
-    <main className="free-fire-page">
-      <header className="free-fire-header">
+    <main className="delta-force-page">
+      <header className="delta-force-header">
         <button
           type="button"
-          className="free-fire-back-button"
-          onClick={() => router.push("/top-up")}
-          aria-label="Volver a recargas"
+          className="delta-force-back-button"
+          onClick={goToStore}
+          aria-label="Volver a la tienda"
         >
           ←
         </button>
 
-        <h1>Delta Force</h1>
+        <h1>DELTA FORCE</h1>
 
-        <div className="free-fire-header-space" />
+        <div className="delta-force-header-actions">
+          {vipActive ? (
+            <div className="delta-force-vip-active">
+              ★ VIP ACTIVO
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="delta-force-vip-button"
+              onClick={goToVip}
+            >
+              ★ COMPRAR VIP
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="delta-force-orders-button"
+            onClick={goToOrders}
+            aria-label="Mis pedidos"
+          >
+            📦
+          </button>
+        </div>
       </header>
 
-      <section className="free-fire-content">
-        <div className="free-fire-banner">
-          <img
-            src="/images/delta-force.jpg"
-            alt="Delta Force"
-          />
-        </div>
+      <section className="delta-force-banner">
+        <img
+          src="/images/delta-force.jpg"
+          alt="Delta Force"
+        />
 
-        <div className="free-fire-note">
-          <strong>🎮 Delta Force</strong>
+        <div className="delta-force-banner-overlay">
+          <div className="delta-force-banner-text">
+            <strong>DELTA FORCE</strong>
+            <span>Recargas rápidas y seguras</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="delta-force-content">
+        <div className="delta-force-note">
+          <strong>🎮 Servicio Delta Force</strong>
           <p>
             Recarga Delta Coins y pases de Delta Force.
             Selecciona una oferta e introduce el ID numérico
@@ -262,29 +309,30 @@ export default function DeltaForcePage() {
           </p>
         </div>
 
-        {vipActive && (
-          <div className="free-fire-vip-notice">
-            ★ PRECIO VIP ACTIVO · PRECIO ESPECIAL
-          </div>
-        )}
-
         <button
           type="button"
-          className="free-fire-offers-toggle"
+          className={`delta-force-offers-toggle ${
+            showOffers ? "open" : ""
+          }`}
           onClick={() => {
             setShowOffers((value) => !value);
             setError("");
           }}
         >
-          <span>✏️ Presione para ver ofertas</span>
-          <span className="free-fire-offers-arrow">
-            {showOffers ? "▲" : "▼"}
+          <span>
+            {showOffers
+              ? "OCULTAR OFERTAS"
+              : "VER OFERTAS DISPONIBLES"}
+          </span>
+
+          <span className="delta-force-offers-arrow">
+            ▼
           </span>
         </button>
 
         {showOffers && (
-          <section className="free-fire-offers-section">
-            <div className="free-fire-offers-list">
+          <section className="delta-force-offers-section">
+            <div className="delta-force-offers-list">
               {DELTA_FORCE_OFFERS.map((offer) => {
                 const selected = selectedOffer?.id === offer.id;
 
@@ -292,19 +340,19 @@ export default function DeltaForcePage() {
                   <button
                     key={offer.id}
                     type="button"
-                    className={`free-fire-offer ${
+                    className={`delta-force-offer ${
                       selected ? "selected" : ""
                     }`}
                     onClick={() => selectOffer(offer)}
                   >
-                    <div className="free-fire-offer-left">
-                      <span className="free-fire-offer-icon">
+                    <div className="delta-force-offer-left">
+                      <span className="delta-force-offer-icon">
                         {offer.name.toLowerCase().includes("season pass")
                           ? "🎟️"
                           : "🪙"}
                       </span>
 
-                      <div>
+                      <div className="delta-force-offer-details">
                         <strong>{offer.name}</strong>
                         <small>
                           {offer.name.toLowerCase().includes("season pass")
@@ -314,7 +362,7 @@ export default function DeltaForcePage() {
                       </div>
                     </div>
 
-                    <div className="free-fire-offer-price">
+                    <div className="delta-force-offer-price">
                       {formatOfferPrice(offer)}
                     </div>
                   </button>
@@ -327,16 +375,16 @@ export default function DeltaForcePage() {
         {selectedOffer && !orderCreated && (
           <section
             id="delta-force-order-form"
-            className="free-fire-order-section"
+            className="delta-force-order-section"
           >
-            <div className="free-fire-selected-offer">
+            <div className="delta-force-selected-offer">
               <span>
                 {selectedOffer.name.toLowerCase().includes("season pass")
                   ? "🎟️"
                   : "🪙"}
               </span>
 
-              <div>
+              <div className="delta-force-selected-details">
                 <strong>{selectedOffer.name}</strong>
                 <span>{formatOfferPrice(selectedOffer)}</span>
               </div>
@@ -364,14 +412,19 @@ export default function DeltaForcePage() {
               />
 
               {error && (
-                <div className="free-fire-form-error" role="alert">
+                <div className="delta-force-form-error" role="alert">
                   {error}
                 </div>
               )}
 
+              <div className="delta-force-total">
+                <span>Total</span>
+                <strong>{formatOfferPrice(selectedOffer)}</strong>
+              </div>
+
               <button
                 type="submit"
-                className="free-fire-create-order-button"
+                className="delta-force-create-order-button"
                 disabled={processing}
               >
                 {processing
@@ -385,9 +438,9 @@ export default function DeltaForcePage() {
         {orderCreated && (
           <section
             id="success-section"
-            className="free-fire-success-section"
+            className="delta-force-success-section"
           >
-            <div className="free-fire-success-icon">✓</div>
+            <div className="delta-force-success-icon">✓</div>
 
             <h2>Orden creada</h2>
 
@@ -397,21 +450,21 @@ export default function DeltaForcePage() {
             </p>
 
             {orderNumber && (
-              <div className="free-fire-order-number">
-                <span>Número de orden</span>
+              <div className="delta-force-order-number">
+                <span>NÚMERO DE ORDEN</span>
                 <strong>{orderNumber}</strong>
               </div>
             )}
 
             {supplierOrderId && (
-              <div className="free-fire-order-number">
+              <div className="delta-force-order-number">
                 <span>ID DE ORDEN DEL PROVEEDOR</span>
                 <strong>{supplierOrderId}</strong>
               </div>
             )}
 
             {orderStatus && (
-              <div className="free-fire-order-number">
+              <div className="delta-force-order-number">
                 <span>ESTADO</span>
                 <strong>{orderStatus}</strong>
               </div>
@@ -419,408 +472,606 @@ export default function DeltaForcePage() {
 
             <button
               type="button"
-              className="free-fire-review-button"
-              onClick={() => router.push("/orders")}
+              className="delta-force-review-button"
+              onClick={goToOrders}
             >
-              Revisar orden
+              REVISAR ORDEN
             </button>
 
             <button
               type="button"
-              className="free-fire-store-button"
-              onClick={() => router.push("/top-up")}
+              className="delta-force-store-button"
+              onClick={goToStore}
             >
-              Volver a la tienda
+              VOLVER A LA TIENDA
             </button>
           </section>
         )}
       </section>
 
-      <footer className="free-fire-footer">
+      <footer className="delta-force-footer">
         🛒 STORE GAMING 🎮
       </footer>
 
       <style jsx>{`
-        .free-fire-page {
+        .delta-force-page {
           min-height: 100vh;
+          width: 100%;
           color: #fff;
           background:
             linear-gradient(
-              rgba(0, 0, 0, 0.72),
-              rgba(0, 0, 0, 0.86)
+              rgba(0, 0, 0, 0.78),
+              rgba(0, 0, 0, 0.88)
             ),
-            url("/images/battle-royale-bg.jpg") center / cover fixed;
-          padding-bottom: 30px;
+            url("/images/battle-royale-bg.jpg")
+              center / cover fixed;
+          overflow-x: hidden;
+          padding-bottom: 20px;
         }
 
-        .free-fire-header {
+        .delta-force-header {
           position: sticky;
           top: 0;
           z-index: 20;
+          width: 100%;
+          min-height: 62px;
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 12px;
+          box-sizing: border-box;
+          background: rgba(8, 8, 8, 0.97);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+          backdrop-filter: blur(12px);
+        }
+
+        .delta-force-back-button,
+        .delta-force-orders-button {
+          width: 42px;
+          height: 42px;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          min-height: 58px;
-          padding: 8px 12px;
-          background: rgba(0, 0, 0, 0.88);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
-        }
-
-        .free-fire-header h1 {
-          margin: 0;
-          font-size: 19px;
-          font-weight: 800;
-          text-align: center;
-        }
-
-        .free-fire-back-button {
-          width: 40px;
-          height: 40px;
-          border: 0;
-          border-radius: 10px;
-          background: rgba(255, 255, 255, 0.08);
+          justify-content: center;
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          border-radius: 11px;
+          background: #151515;
           color: #fff;
-          font-size: 25px;
+          font-size: 21px;
+          font-weight: 900;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+        }
+
+        .delta-force-header h1 {
+          min-width: 0;
+          margin: 0;
+          text-align: center;
+          color: #fff;
+          font-size: 16px;
+          font-weight: 950;
+          letter-spacing: 0.6px;
+          white-space: nowrap;
+        }
+
+        .delta-force-header-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 7px;
+        }
+
+        .delta-force-vip-button,
+        .delta-force-vip-active {
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 9px;
+          border-radius: 9px;
+          white-space: nowrap;
+          font-size: 10px;
+          font-weight: 950;
+        }
+
+        .delta-force-vip-button {
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: #191919;
+          color: #fff;
           cursor: pointer;
         }
 
-        .free-fire-header-space {
-          width: 40px;
+        .delta-force-vip-active {
+          border: 1px solid rgba(224, 178, 72, 0.5);
+          background: rgba(140, 98, 20, 0.16);
+          color: #f2c66d;
         }
 
-        .free-fire-content {
-          width: min(100%, 680px);
-          margin: 0 auto;
-          padding: 0 12px 30px;
+        .delta-force-orders-button {
+          width: 36px;
+          height: 36px;
+          flex: 0 0 36px;
+          font-size: 17px;
         }
 
-        .free-fire-banner {
-          width: calc(100% + 24px);
-          margin-left: -12px;
+        .delta-force-banner {
+          position: relative;
+          width: 100%;
+          height: 205px;
           overflow: hidden;
+          background: #080808;
+          border-bottom: 1px solid rgba(220, 45, 45, 0.25);
         }
 
-        .free-fire-banner img {
+        .delta-force-banner img {
           display: block;
           width: 100%;
-          height: 210px;
+          height: 100%;
           object-fit: cover;
         }
 
-        .free-fire-note {
-          margin-top: 14px;
+        .delta-force-banner-overlay {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: flex-end;
+          padding: 18px;
+          box-sizing: border-box;
+          background: linear-gradient(
+            to top,
+            rgba(0, 0, 0, 0.9),
+            rgba(0, 0, 0, 0.1) 65%,
+            transparent
+          );
+        }
+
+        .delta-force-banner-text {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .delta-force-banner-text strong {
+          font-size: 25px;
+          font-weight: 1000;
+          letter-spacing: 1px;
+        }
+
+        .delta-force-banner-text span {
+          margin-top: 3px;
+          color: rgba(255, 255, 255, 0.78);
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .delta-force-content {
+          position: relative;
+          z-index: 2;
+          width: 100%;
+          max-width: 680px;
+          margin: 0 auto;
+          padding: 18px 14px 30px;
+          box-sizing: border-box;
+        }
+
+        .delta-force-note {
+          margin-bottom: 16px;
           padding: 14px;
-          border-radius: 14px;
-          background: rgba(0, 0, 0, 0.68);
+          border-radius: 12px;
+          background: rgba(18, 18, 18, 0.95);
           border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .free-fire-note strong {
+        .delta-force-note strong {
           color: #fff;
-          font-size: 15px;
+          font-size: 14px;
+          font-weight: 900;
         }
 
-        .free-fire-note p {
+        .delta-force-note p {
           margin: 7px 0 0;
-          color: #d8d8d8;
-          font-size: 13px;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 12px;
+          font-weight: 600;
           line-height: 1.5;
         }
 
-        .free-fire-vip-notice {
-          margin-top: 12px;
-          padding: 10px 12px;
-          border: 1px solid rgba(255, 65, 65, 0.4);
-          border-radius: 11px;
-          background: rgba(125, 0, 0, 0.22);
-          color: #ffb1b1;
-          text-align: center;
-          font-size: 12px;
-          font-weight: 900;
-          letter-spacing: 0.4px;
-        }
-
-        .free-fire-offers-toggle {
+        .delta-force-offers-toggle {
           width: 100%;
-          margin-top: 14px;
-          padding: 15px;
+          min-height: 52px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 13px;
-          background: rgba(0, 0, 0, 0.78);
+          padding: 0 16px;
+          border: 1px solid rgba(210, 45, 45, 0.4);
+          border-radius: 12px;
+          background: #171111;
           color: #fff;
           font-size: 14px;
-          font-weight: 800;
+          font-weight: 900;
+          letter-spacing: 0.3px;
           cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
         }
 
-        .free-fire-offers-arrow {
-          font-size: 12px;
+        .delta-force-offers-toggle.open {
+          border-color: rgba(220, 55, 55, 0.7);
+          background: #201111;
         }
 
-        .free-fire-offers-section {
-          margin-top: 10px;
+        .delta-force-offers-arrow {
+          font-size: 17px;
+          transition: transform 0.2s ease;
         }
 
-        .free-fire-offers-list {
+        .delta-force-offers-toggle.open
+          .delta-force-offers-arrow {
+          transform: rotate(180deg);
+        }
+
+        .delta-force-offers-section {
+          margin-top: 12px;
+        }
+
+        .delta-force-offers-list {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 9px;
         }
 
-        .free-fire-offer {
+        .delta-force-offer {
           width: 100%;
-          min-height: 65px;
-          padding: 10px 12px;
+          min-height: 66px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
+          gap: 12px;
+          padding: 10px 12px;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 13px;
-          background: rgba(0, 0, 0, 0.78);
+          border-radius: 12px;
+          background: rgba(15, 15, 15, 0.97);
           color: #fff;
-          text-align: left;
           cursor: pointer;
-          transition: 0.15s ease;
+          transition:
+            transform 0.15s ease,
+            border-color 0.15s ease,
+            background 0.15s ease;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          text-align: left;
         }
 
-        .free-fire-offer:active {
-          transform: scale(0.98);
+        .delta-force-offer:active {
+          transform: scale(0.985);
         }
 
-        .free-fire-offer.selected {
-          border-color: rgba(255, 50, 50, 0.8);
-          background: rgba(120, 0, 0, 0.3);
+        .delta-force-offer:hover,
+        .delta-force-offer.selected {
+          border-color: rgba(220, 55, 55, 0.55);
+          background: #1b1414;
         }
 
-        .free-fire-offer-left {
+        .delta-force-offer-left {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 11px;
           min-width: 0;
         }
 
-        .free-fire-offer-icon {
-          width: 38px;
-          height: 38px;
-          flex: 0 0 38px;
+        .delta-force-offer-icon {
+          width: 42px;
+          height: 42px;
+          flex: 0 0 42px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 10px;
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(220, 45, 45, 0.12);
+          border: 1px solid rgba(220, 45, 45, 0.2);
           font-size: 21px;
         }
 
-        .free-fire-offer-left strong {
-          display: block;
-          font-size: 14px;
+        .delta-force-offer-details {
+          min-width: 0;
         }
 
-        .free-fire-offer-left small {
+        .delta-force-offer-details strong {
           display: block;
-          margin-top: 3px;
-          color: #aaa;
-          font-size: 11px;
-        }
-
-        .free-fire-offer-price {
-          flex-shrink: 0;
           color: #fff;
           font-size: 14px;
-          font-weight: 900;
+          font-weight: 850;
+          line-height: 1.25;
         }
 
-        .free-fire-order-section {
-          margin-top: 16px;
+        .delta-force-offer-details small {
+          display: block;
+          margin-top: 3px;
+          color: rgba(255, 255, 255, 0.58);
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .delta-force-offer-price {
+          flex-shrink: 0;
+          color: #ff7777;
+          font-size: 16px;
+          font-weight: 950;
+          white-space: nowrap;
+        }
+
+        .delta-force-order-section {
+          margin-top: 18px;
           padding: 16px;
-          border-radius: 15px;
-          background: rgba(0, 0, 0, 0.82);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 14px;
+          background: rgba(14, 14, 14, 0.97);
+          border: 1px solid rgba(220, 45, 45, 0.3);
+          scroll-margin-top: 80px;
         }
 
-        .free-fire-selected-offer {
+        .delta-force-selected-offer {
           display: flex;
           align-items: center;
           gap: 11px;
           margin-bottom: 15px;
           padding: 12px;
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.06);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.045);
         }
 
-        .free-fire-selected-offer > span {
+        .delta-force-selected-offer > span {
           font-size: 25px;
         }
 
-        .free-fire-selected-offer div {
+        .delta-force-selected-details {
           flex: 1;
+          min-width: 0;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 10px;
         }
 
-        .free-fire-selected-offer strong {
+        .delta-force-selected-details strong {
+          color: #fff;
           font-size: 14px;
         }
 
-        .free-fire-selected-offer div span {
+        .delta-force-selected-details span {
+          color: #ff7777;
           font-weight: 900;
           white-space: nowrap;
         }
 
-        .free-fire-order-section form {
+        .delta-force-order-section form {
           display: flex;
           flex-direction: column;
         }
 
-        .free-fire-order-section label {
-          margin-bottom: 7px;
-          font-size: 13px;
-          font-weight: 800;
+        .delta-force-order-section label {
+          margin-bottom: 8px;
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 12px;
+          font-weight: 850;
+          letter-spacing: 0.3px;
         }
 
-        .free-fire-order-section input {
+        .delta-force-order-section input {
           width: 100%;
+          height: 50px;
           box-sizing: border-box;
-          padding: 13px;
-          border: 1px solid rgba(255, 255, 255, 0.16);
-          border-radius: 11px;
+          padding: 0 14px;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 10px;
           outline: none;
-          background: rgba(255, 255, 255, 0.07);
+          background: #090909;
+          color: #fff;
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+        .delta-force-order-section input:focus {
+          border-color: rgba(220, 55, 55, 0.75);
+        }
+
+        .delta-force-order-section input::placeholder {
+          color: rgba(255, 255, 255, 0.35);
+        }
+
+        .delta-force-form-error {
+          margin-top: 10px;
+          padding: 11px 12px;
+          border-radius: 10px;
+          background: rgba(120, 0, 0, 0.25);
+          border: 1px solid rgba(255, 70, 70, 0.3);
+          color: #ffaaaa;
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1.4;
+        }
+
+        .delta-force-total {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 0 12px;
           color: #fff;
           font-size: 15px;
+          font-weight: 850;
         }
 
-        .free-fire-order-section input::placeholder {
-          color: #888;
+        .delta-force-total strong {
+          color: #ff7777;
+          font-size: 19px;
+          font-weight: 950;
         }
 
-        .free-fire-form-error {
-          margin-top: 8px;
-          padding: 9px;
-          border-radius: 9px;
-          background: rgba(150, 0, 0, 0.25);
-          color: #ff9b9b;
-          font-size: 12px;
-        }
-
-        .free-fire-create-order-button {
+        .delta-force-create-order-button {
           width: 100%;
-          margin-top: 12px;
-          padding: 13px;
-          border: 0;
+          min-height: 52px;
+          border: 1px solid #d52c2c;
           border-radius: 11px;
-          background: #d71920;
+          background: #c92323;
           color: #fff;
-          font-weight: 900;
+          font-size: 14px;
+          font-weight: 950;
+          letter-spacing: 0.4px;
           cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          transition:
+            transform 0.15s ease,
+            opacity 0.15s ease;
         }
 
-        .free-fire-create-order-button:disabled {
-          opacity: 0.6;
-          cursor: wait;
+        .delta-force-create-order-button:active {
+          transform: scale(0.985);
         }
 
-        .free-fire-success-section {
+        .delta-force-create-order-button:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .delta-force-success-section {
           margin-top: 18px;
-          padding: 22px 16px;
-          border-radius: 16px;
-          background: rgba(0, 0, 0, 0.84);
-          border: 1px solid rgba(50, 255, 100, 0.2);
+          padding: 20px 14px;
+          border-radius: 14px;
+          background: rgba(13, 13, 13, 0.97);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           text-align: center;
+          scroll-margin-top: 80px;
         }
 
-        .free-fire-success-icon {
+        .delta-force-success-icon {
           width: 58px;
           height: 58px;
-          margin: 0 auto 10px;
+          margin: 0 auto 12px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 50%;
-          background: #19a957;
+          background: #168b50;
           color: #fff;
-          font-size: 31px;
-          font-weight: 900;
+          font-size: 28px;
+          font-weight: 1000;
         }
 
-        .free-fire-success-section h2 {
+        .delta-force-success-section h2 {
           margin: 0;
-          font-size: 21px;
+          color: #fff;
+          font-size: 20px;
+          font-weight: 950;
         }
 
-        .free-fire-success-section p {
+        .delta-force-success-section p {
           margin: 8px 0;
-          color: #cfcfcf;
-          font-size: 13px;
+          color: rgba(255, 255, 255, 0.65);
+          font-size: 12px;
+          line-height: 1.45;
         }
 
-        .free-fire-order-number {
+        .delta-force-order-number {
           margin-top: 13px;
           padding: 12px;
           border-radius: 10px;
-          background: rgba(255, 255, 255, 0.06);
+          background: rgba(255, 255, 255, 0.05);
           overflow-wrap: anywhere;
         }
 
-        .free-fire-order-number span {
+        .delta-force-order-number span {
           display: block;
-          color: #999;
+          color: rgba(255, 255, 255, 0.55);
           font-size: 11px;
+          font-weight: 700;
         }
 
-        .free-fire-order-number strong {
+        .delta-force-order-number strong {
           display: block;
           margin-top: 4px;
-          font-size: 16px;
+          color: #fff;
+          font-size: 15px;
+          font-weight: 900;
         }
 
-        .free-fire-review-button,
-        .free-fire-store-button {
+        .delta-force-review-button,
+        .delta-force-store-button {
           width: 100%;
-          margin-top: 12px;
-          padding: 13px;
-          border: 0;
-          border-radius: 11px;
+          min-height: 49px;
+          margin-top: 10px;
+          border-radius: 10px;
+          font-size: 13px;
           font-weight: 900;
           cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
         }
 
-        .free-fire-review-button {
-          background: #19a957;
+        .delta-force-review-button {
+          border: 0;
+          background: #c92323;
           color: #fff;
         }
 
-        .free-fire-store-button {
-          background: rgba(255, 255, 255, 0.1);
+        .delta-force-store-button {
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: #171717;
           color: #fff;
         }
 
-        .free-fire-footer {
-          padding: 25px 12px 5px;
-          color: #888;
-          font-size: 12px;
+        .delta-force-footer {
+          position: relative;
+          z-index: 2;
+          padding: 18px 12px 25px;
           text-align: center;
+          color: rgba(255, 255, 255, 0.48);
+          font-size: 12px;
+          font-weight: 800;
         }
 
-        @media (max-width: 480px) {
-          .free-fire-banner img {
-            height: 185px;
+        @media (max-width: 420px) {
+          .delta-force-header {
+            gap: 7px;
+            padding-left: 9px;
+            padding-right: 9px;
           }
 
-          .free-fire-selected-offer div {
+          .delta-force-header h1 {
+            font-size: 13px;
+          }
+
+          .delta-force-vip-button,
+          .delta-force-vip-active {
+            padding: 0 7px;
+            font-size: 9px;
+          }
+
+          .delta-force-orders-button {
+            width: 32px;
+            height: 32px;
+            flex-basis: 32px;
+          }
+
+          .delta-force-banner-text strong {
+            font-size: 22px;
+          }
+
+          .delta-force-content {
+            padding-left: 11px;
+            padding-right: 11px;
+          }
+
+          .delta-force-offer {
+            padding: 9px 10px;
+          }
+
+          .delta-force-offer-price {
+            font-size: 14px;
+          }
+
+          .delta-force-selected-details {
             flex-direction: column;
             align-items: flex-start;
-          }
-
-          .free-fire-offer-price {
-            font-size: 13px;
           }
         }
       `}</style>
