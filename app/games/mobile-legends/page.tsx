@@ -1,8 +1,9 @@
 
 "use client";
 
+import type { FormEvent } from "react";
+
 import {
-  FormEvent,
   useEffect,
   useRef,
   useState,
