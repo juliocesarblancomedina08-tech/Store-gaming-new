@@ -31,9 +31,7 @@ export default function BloodStrikePage() {
   const [vipActive, setVipActive] = useState(false);
 
   /*
-   * ============================================================
    * COMPROBAR VIP
-   * ============================================================
    */
 
   useEffect(() => {
@@ -87,9 +85,7 @@ export default function BloodStrikePage() {
   }, []);
 
   /*
-   * ============================================================
    * PRECIO SEGÚN MEMBRESÍA
-   * ============================================================
    */
 
   function getOfferPrice(offer: BloodStrikeOffer) {
@@ -243,6 +239,10 @@ export default function BloodStrikePage() {
     router.push("/top-up");
   }
 
+  function goToVip() {
+    router.push("/vip");
+  }
+
   return (
     <main className="blood-strike-page">
       <header className="blood-strike-header">
@@ -250,21 +250,39 @@ export default function BloodStrikePage() {
           type="button"
           className="blood-strike-back-button"
           onClick={goToStore}
+          aria-label="Volver a la tienda"
         >
           ←
         </button>
 
         <div className="blood-strike-header-title">
-          🩸 BLOOD STRIKE
+          BLOOD STRIKE
         </div>
 
-        <button
-          type="button"
-          className="blood-strike-orders-button"
-          onClick={goToOrders}
-        >
-          📦
-        </button>
+        <div className="blood-strike-header-actions">
+          {vipActive ? (
+            <div className="blood-strike-vip-active">
+              ★ VIP ACTIVO
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="blood-strike-vip-button"
+              onClick={goToVip}
+            >
+              ★ COMPRAR VIP
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="blood-strike-orders-button"
+            onClick={goToOrders}
+            aria-label="Mis pedidos"
+          >
+            📦
+          </button>
+        </div>
       </header>
 
       <section className="blood-strike-banner">
@@ -287,12 +305,6 @@ export default function BloodStrikePage() {
           de crear la orden.
         </div>
 
-        {vipActive && (
-          <div className="blood-strike-vip-notice">
-            ★ PRECIO VIP ACTIVO · PRECIO ESPECIAL
-          </div>
-        )}
-
         <button
           type="button"
           className={`blood-strike-offers-toggle ${
@@ -304,8 +316,8 @@ export default function BloodStrikePage() {
         >
           <span>
             {showOffers
-              ? "Ocultar ofertas"
-              : "Presione para ver ofertas"}
+              ? "OCULTAR OFERTAS"
+              : "VER OFERTAS DISPONIBLES"}
           </span>
 
           <span className="blood-strike-offers-arrow">
@@ -355,7 +367,7 @@ export default function BloodStrikePage() {
           >
             <div className="blood-strike-selected-offer">
               <div className="blood-strike-selected-title">
-                Oferta seleccionada
+                OFERTA SELECCIONADA
               </div>
 
               <div className="blood-strike-selected-name">
@@ -372,7 +384,7 @@ export default function BloodStrikePage() {
                 onSubmit={handleSubmit}
               >
                 <div className="blood-strike-input-description">
-                  ID de jugador
+                  ID DE JUGADOR
                 </div>
 
                 <div className="blood-strike-input-wrapper">
@@ -487,7 +499,7 @@ export default function BloodStrikePage() {
       </div>
 
       <footer className="blood-strike-footer">
-        🛒STORE GAMING🎮
+        🛒 STORE GAMING 🎮
       </footer>
 
       <style jsx>{`
@@ -497,8 +509,8 @@ export default function BloodStrikePage() {
           color: #fff;
           background:
             linear-gradient(
-              rgba(0, 0, 0, 0.68),
-              rgba(0, 0, 0, 0.78)
+              rgba(0, 0, 0, 0.78),
+              rgba(0, 0, 0, 0.88)
             ),
             url("/images/battle-royale-bg.jpg")
               center / cover fixed;
@@ -511,51 +523,85 @@ export default function BloodStrikePage() {
           top: 0;
           z-index: 20;
           width: 100%;
-          min-height: 58px;
-          display: flex;
+          min-height: 62px;
+          display: grid;
+          grid-template-columns: 42px minmax(0, 1fr) auto;
           align-items: center;
-          justify-content: space-between;
           gap: 10px;
           padding: 8px 12px;
           box-sizing: border-box;
-          background: rgba(0, 0, 0, 0.92);
-          border-bottom: 1px solid
-            rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
+          background: rgba(8, 8, 8, 0.97);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+          backdrop-filter: blur(12px);
         }
 
         .blood-strike-back-button,
         .blood-strike-orders-button {
           width: 42px;
           height: 42px;
-          flex: 0 0 42px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border: 1px solid
-            rgba(255, 255, 255, 0.14);
+          border: 1px solid rgba(255, 255, 255, 0.13);
           border-radius: 11px;
-          background: rgba(255, 255, 255, 0.07);
+          background: #151515;
           color: #fff;
-          font-size: 20px;
+          font-size: 21px;
           font-weight: 900;
           cursor: pointer;
           -webkit-tap-highlight-color: transparent;
           touch-action: manipulation;
         }
 
-        .blood-strike-orders-button {
-          font-size: 19px;
-        }
-
         .blood-strike-header-title {
-          flex: 1;
+          min-width: 0;
           text-align: center;
           color: #fff;
           font-size: 16px;
           font-weight: 950;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.6px;
           white-space: nowrap;
+        }
+
+        .blood-strike-header-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 7px;
+        }
+
+        .blood-strike-vip-button,
+        .blood-strike-vip-active {
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 9px;
+          border-radius: 9px;
+          white-space: nowrap;
+          font-size: 10px;
+          font-weight: 950;
+          letter-spacing: 0.2px;
+        }
+
+        .blood-strike-vip-button {
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: #191919;
+          color: #fff;
+          cursor: pointer;
+        }
+
+        .blood-strike-vip-active {
+          border: 1px solid rgba(224, 178, 72, 0.5);
+          background: rgba(140, 98, 20, 0.16);
+          color: #f2c66d;
+        }
+
+        .blood-strike-orders-button {
+          width: 36px;
+          height: 36px;
+          flex: 0 0 36px;
+          font-size: 17px;
         }
 
         .blood-strike-banner {
@@ -564,6 +610,7 @@ export default function BloodStrikePage() {
           height: 205px;
           overflow: hidden;
           background: #080808;
+          border-bottom: 1px solid rgba(220, 45, 45, 0.25);
         }
 
         .blood-strike-banner img {
@@ -580,13 +627,12 @@ export default function BloodStrikePage() {
           align-items: flex-end;
           padding: 18px;
           box-sizing: border-box;
-          background:
-            linear-gradient(
-              to top,
-              rgba(0, 0, 0, 0.88),
-              rgba(0, 0, 0, 0.1) 65%,
-              transparent
-            );
+          background: linear-gradient(
+            to top,
+            rgba(0, 0, 0, 0.9),
+            rgba(0, 0, 0, 0.1) 65%,
+            transparent
+          );
         }
 
         .blood-strike-banner-text {
@@ -602,6 +648,7 @@ export default function BloodStrikePage() {
 
         .blood-strike-banner-text span {
           margin-top: 3px;
+          color: rgba(255, 255, 255, 0.78);
           font-size: 13px;
           font-weight: 700;
         }
@@ -610,7 +657,7 @@ export default function BloodStrikePage() {
           position: relative;
           z-index: 2;
           width: 100%;
-          max-width: 650px;
+          max-width: 680px;
           margin: 0 auto;
           padding: 18px 14px 30px;
           box-sizing: border-box;
@@ -620,27 +667,13 @@ export default function BloodStrikePage() {
           margin: 0 0 16px;
           padding: 12px 14px;
           border-radius: 12px;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid
-            rgba(255, 255, 255, 0.12);
-          color: #fff;
+          background: rgba(18, 18, 18, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.85);
           text-align: center;
           font-size: 13px;
-          font-weight: 700;
+          font-weight: 650;
           line-height: 1.45;
-        }
-
-        .blood-strike-vip-notice {
-          margin: 0 0 14px;
-          padding: 10px 12px;
-          border: 1px solid rgba(255, 65, 65, 0.4);
-          border-radius: 11px;
-          background: rgba(125, 0, 0, 0.22);
-          color: #ffb1b1;
-          text-align: center;
-          font-size: 12px;
-          font-weight: 900;
-          letter-spacing: 0.4px;
         }
 
         .blood-strike-offers-toggle {
@@ -650,20 +683,25 @@ export default function BloodStrikePage() {
           align-items: center;
           justify-content: space-between;
           padding: 0 16px;
-          border: 1px solid
-            rgba(255, 255, 255, 0.16);
-          border-radius: 14px;
-          background: rgba(15, 15, 15, 0.92);
+          border: 1px solid rgba(210, 45, 45, 0.4);
+          border-radius: 12px;
+          background: #171111;
           color: #fff;
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 900;
+          letter-spacing: 0.3px;
           cursor: pointer;
           -webkit-tap-highlight-color: transparent;
           touch-action: manipulation;
         }
 
+        .blood-strike-offers-toggle.open {
+          border-color: rgba(220, 55, 55, 0.7);
+          background: #201111;
+        }
+
         .blood-strike-offers-arrow {
-          font-size: 18px;
+          font-size: 17px;
           transition: transform 0.2s ease;
         }
 
@@ -679,7 +717,7 @@ export default function BloodStrikePage() {
         .blood-strike-offers-list {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 9px;
         }
 
         .blood-strike-offer {
@@ -690,10 +728,9 @@ export default function BloodStrikePage() {
           justify-content: space-between;
           gap: 12px;
           padding: 10px 12px;
-          border: 1px solid
-            rgba(255, 255, 255, 0.13);
-          border-radius: 14px;
-          background: rgba(12, 12, 12, 0.94);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          background: rgba(15, 15, 15, 0.97);
           color: #fff;
           cursor: pointer;
           transition:
@@ -706,12 +743,12 @@ export default function BloodStrikePage() {
         }
 
         .blood-strike-offer:active {
-          transform: scale(0.98);
+          transform: scale(0.985);
         }
 
         .blood-strike-offer:hover {
-          border-color: rgba(255, 255, 255, 0.3);
-          background: rgba(25, 25, 25, 0.96);
+          border-color: rgba(220, 55, 55, 0.55);
+          background: #1b1414;
         }
 
         .blood-strike-offer-left {
@@ -728,8 +765,9 @@ export default function BloodStrikePage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 11px;
-          background: rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          background: rgba(220, 45, 45, 0.12);
+          border: 1px solid rgba(220, 45, 45, 0.2);
           font-size: 21px;
         }
 
@@ -742,14 +780,14 @@ export default function BloodStrikePage() {
 
         .blood-strike-offer-description {
           margin-top: 3px;
-          color: rgba(255, 255, 255, 0.62);
+          color: rgba(255, 255, 255, 0.58);
           font-size: 11px;
           font-weight: 600;
         }
 
         .blood-strike-offer-price {
           flex-shrink: 0;
-          color: #fff;
+          color: #ff7777;
           font-size: 16px;
           font-weight: 950;
           white-space: nowrap;
@@ -757,20 +795,20 @@ export default function BloodStrikePage() {
 
         .blood-strike-order-section {
           margin-top: 18px;
+          scroll-margin-top: 80px;
         }
 
         .blood-strike-selected-offer {
-          padding: 14px;
-          border-radius: 15px;
-          background: rgba(12, 12, 12, 0.94);
-          border: 1px solid
-            rgba(255, 255, 255, 0.14);
+          padding: 16px;
+          border-radius: 14px;
+          background: rgba(14, 14, 14, 0.97);
+          border: 1px solid rgba(220, 45, 45, 0.3);
         }
 
         .blood-strike-selected-title {
-          color: rgba(255, 255, 255, 0.62);
+          color: rgba(255, 255, 255, 0.58);
           font-size: 11px;
-          font-weight: 800;
+          font-weight: 850;
           text-transform: uppercase;
           letter-spacing: 0.7px;
         }
@@ -778,16 +816,16 @@ export default function BloodStrikePage() {
         .blood-strike-selected-name {
           margin-top: 5px;
           color: #fff;
-          font-size: 17px;
+          font-size: 18px;
           font-weight: 950;
         }
 
         .blood-strike-order-note {
           margin-top: 14px;
           padding: 11px 12px;
-          border-radius: 11px;
-          background: rgba(255, 255, 255, 0.06);
-          color: rgba(255, 255, 255, 0.78);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.045);
+          color: rgba(255, 255, 255, 0.72);
           font-size: 12px;
           font-weight: 650;
           line-height: 1.45;
@@ -801,9 +839,10 @@ export default function BloodStrikePage() {
         }
 
         .blood-strike-input-description {
-          color: rgba(255, 255, 255, 0.78);
-          font-size: 13px;
-          font-weight: 750;
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 12px;
+          font-weight: 850;
+          letter-spacing: 0.3px;
         }
 
         .blood-strike-input-wrapper {
@@ -814,11 +853,10 @@ export default function BloodStrikePage() {
           width: 100%;
           height: 50px;
           padding: 0 14px;
-          border: 1px solid
-            rgba(255, 255, 255, 0.16);
-          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 10px;
           outline: none;
-          background: rgba(0, 0, 0, 0.72);
+          background: #090909;
           color: #fff;
           font-size: 16px;
           font-weight: 700;
@@ -826,20 +864,19 @@ export default function BloodStrikePage() {
         }
 
         .blood-strike-input:focus {
-          border-color: rgba(255, 255, 255, 0.42);
+          border-color: rgba(220, 55, 55, 0.75);
         }
 
         .blood-strike-input::placeholder {
-          color: rgba(255, 255, 255, 0.4);
+          color: rgba(255, 255, 255, 0.35);
         }
 
         .blood-strike-error {
           padding: 11px 12px;
-          border-radius: 11px;
-          background: rgba(120, 0, 0, 0.35);
-          border: 1px solid
-            rgba(255, 70, 70, 0.35);
-          color: #ffb2b2;
+          border-radius: 10px;
+          background: rgba(120, 0, 0, 0.25);
+          border: 1px solid rgba(255, 70, 70, 0.3);
+          color: #ffaaaa;
           font-size: 12px;
           font-weight: 700;
           line-height: 1.4;
@@ -856,19 +893,21 @@ export default function BloodStrikePage() {
         }
 
         .blood-strike-total strong {
-          font-size: 18px;
+          color: #ff7777;
+          font-size: 19px;
           font-weight: 950;
         }
 
         .blood-strike-create-order-button {
           width: 100%;
           min-height: 52px;
-          border: 0;
-          border-radius: 13px;
-          background: #fff;
-          color: #080808;
-          font-size: 15px;
+          border: 1px solid #d52c2c;
+          border-radius: 11px;
+          background: #c92323;
+          color: #fff;
+          font-size: 14px;
           font-weight: 950;
+          letter-spacing: 0.4px;
           cursor: pointer;
           -webkit-tap-highlight-color: transparent;
           touch-action: manipulation;
@@ -878,7 +917,7 @@ export default function BloodStrikePage() {
         }
 
         .blood-strike-create-order-button:active {
-          transform: scale(0.98);
+          transform: scale(0.985);
         }
 
         .blood-strike-create-order-button:disabled {
@@ -889,10 +928,11 @@ export default function BloodStrikePage() {
         .blood-strike-success-section {
           margin-top: 18px;
           padding: 20px 14px;
-          border-radius: 16px;
-          background: rgba(10, 10, 10, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 14px;
+          background: rgba(13, 13, 13, 0.97);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           text-align: center;
+          scroll-margin-top: 80px;
         }
 
         .blood-strike-success-icon {
@@ -903,7 +943,7 @@ export default function BloodStrikePage() {
           align-items: center;
           justify-content: center;
           border-radius: 50%;
-          background: #20c56a;
+          background: #168b50;
           color: #fff;
           font-size: 28px;
           font-weight: 1000;
@@ -917,7 +957,7 @@ export default function BloodStrikePage() {
 
         .blood-strike-success-text {
           margin-top: 7px;
-          color: rgba(255, 255, 255, 0.68);
+          color: rgba(255, 255, 255, 0.65);
           font-size: 12px;
           line-height: 1.45;
         }
@@ -927,6 +967,7 @@ export default function BloodStrikePage() {
           color: #fff;
           font-size: 14px;
           font-weight: 900;
+          overflow-wrap: anywhere;
         }
 
         .blood-strike-review-button,
@@ -934,8 +975,8 @@ export default function BloodStrikePage() {
           width: 100%;
           min-height: 49px;
           margin-top: 10px;
-          border-radius: 12px;
-          font-size: 14px;
+          border-radius: 10px;
+          font-size: 13px;
           font-weight: 900;
           cursor: pointer;
           -webkit-tap-highlight-color: transparent;
@@ -944,22 +985,22 @@ export default function BloodStrikePage() {
 
         .blood-strike-review-button {
           border: 0;
-          background: #fff;
-          color: #080808;
+          background: #c92323;
+          color: #fff;
         }
 
         .blood-strike-store-button {
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: #171717;
           color: #fff;
         }
 
         .blood-strike-service-info {
           margin-top: 20px;
           padding: 14px;
-          border-radius: 14px;
-          background: rgba(10, 10, 10, 0.86);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          background: rgba(13, 13, 13, 0.92);
+          border: 1px solid rgba(255, 255, 255, 0.09);
         }
 
         .blood-strike-service-info-title {
@@ -970,7 +1011,7 @@ export default function BloodStrikePage() {
 
         .blood-strike-service-info-text {
           margin-top: 7px;
-          color: rgba(255, 255, 255, 0.65);
+          color: rgba(255, 255, 255, 0.62);
           font-size: 12px;
           line-height: 1.5;
         }
@@ -980,12 +1021,34 @@ export default function BloodStrikePage() {
           z-index: 2;
           padding: 18px 12px 25px;
           text-align: center;
-          color: rgba(255, 255, 255, 0.58);
+          color: rgba(255, 255, 255, 0.48);
           font-size: 12px;
           font-weight: 800;
         }
 
         @media (max-width: 420px) {
+          .blood-strike-header {
+            gap: 7px;
+            padding-left: 9px;
+            padding-right: 9px;
+          }
+
+          .blood-strike-header-title {
+            font-size: 13px;
+          }
+
+          .blood-strike-vip-button,
+          .blood-strike-vip-active {
+            padding: 0 7px;
+            font-size: 9px;
+          }
+
+          .blood-strike-orders-button {
+            width: 32px;
+            height: 32px;
+            flex-basis: 32px;
+          }
+
           .blood-strike-banner-text strong {
             font-size: 22px;
           }
