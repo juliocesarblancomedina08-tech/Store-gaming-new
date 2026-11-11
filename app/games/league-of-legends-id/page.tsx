@@ -31,7 +31,53 @@ export default function LeagueOfLegendsIdPage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [vipActive, setVipActive] = useState(false);
 
+  // Consultar estado VIP
+  useEffect(() => {
+    let active = true;
+
+    async function checkVipStatus() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          if (active) setVipActive(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("vip_expires_at")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const expiration = data?.vip_expires_at
+          ? new Date(data.vip_expires_at).getTime()
+          : 0;
+
+        if (active) {
+          setVipActive(expiration > Date.now());
+        }
+      } catch (err) {
+        console.error("Error consultando VIP:", err);
+
+        if (active) setVipActive(false);
+      }
+    }
+
+    checkVipStatus();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Cargar ofertas
   useEffect(() => {
     let active = true;
 
@@ -153,19 +199,45 @@ export default function LeagueOfLegendsIdPage() {
   return (
     <main className="lol-page">
       <div className="lol-container">
-        <button
-          type="button"
-          className="lol-back"
-          onClick={() => router.back()}
-        >
-          ← Volver
-        </button>
 
+        {/* HEADER */}
+        <header className="lol-top-header">
+          <button
+            type="button"
+            className="lol-back"
+            onClick={() => router.back()}
+          >
+            ← Volver
+          </button>
+
+          <h1>LEAGUE OF LEGENDS</h1>
+
+          <div className="lol-vip-container">
+            {vipActive ? (
+              <div className="lol-vip-active">
+                ⭐ VIP ACTIVO
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="lol-vip-button"
+                onClick={() => router.push("/vip")}
+              >
+                ⭐ COMPRAR VIP
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* PRESENTACIÓN */}
         <header className="lol-header">
           <div className="lol-icon">⚔️</div>
+
           <div>
             <p className="lol-eyebrow">STORE GAMING</p>
-            <h1>League of Legends</h1>
+
+            <h2>League of Legends</h2>
+
             <p className="lol-subtitle">
               Recarga tu cuenta de forma sencilla.
             </p>
@@ -184,6 +256,7 @@ export default function LeagueOfLegendsIdPage() {
           </div>
         )}
 
+        {/* OFERTAS */}
         <section className="lol-section">
           <div className="lol-section-heading">
             <h2>Selecciona tu oferta</h2>
@@ -233,6 +306,7 @@ export default function LeagueOfLegendsIdPage() {
           )}
         </section>
 
+        {/* FORMULARIO */}
         <section className="lol-section lol-form-section">
           <h2>Datos de tu cuenta</h2>
 
@@ -240,6 +314,7 @@ export default function LeagueOfLegendsIdPage() {
             <label htmlFor="lol-game-id">
               ID de jugador
             </label>
+
             <input
               id="lol-game-id"
               type="text"
@@ -252,6 +327,7 @@ export default function LeagueOfLegendsIdPage() {
             <label htmlFor="lol-server-id">
               Servidor
             </label>
+
             <input
               id="lol-server-id"
               type="text"
@@ -288,7 +364,7 @@ export default function LeagueOfLegendsIdPage() {
       <style jsx>{`
         .lol-page {
           min-height: 100vh;
-          padding: 28px 16px 60px;
+          padding: 20px 16px 60px;
           color: #fff;
           background:
             radial-gradient(
@@ -305,16 +381,75 @@ export default function LeagueOfLegendsIdPage() {
           margin: 0 auto;
         }
 
+        /* HEADER SUPERIOR */
+        .lol-top-header {
+          width: 100%;
+          min-height: 54px;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 30px;
+        }
+
+        .lol-top-header h1 {
+          margin: 0;
+          color: #fff;
+          text-align: center;
+          font-size: clamp(13px, 2.5vw, 19px);
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
         .lol-back {
+          justify-self: start;
           border: 1px solid #303448;
           border-radius: 10px;
           padding: 10px 15px;
           color: #fff;
           background: #151827;
           cursor: pointer;
-          margin-bottom: 25px;
+          white-space: nowrap;
         }
 
+        .lol-vip-container {
+          justify-self: end;
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .lol-vip-button,
+        .lol-vip-active {
+          padding: 10px 12px;
+          border-radius: 10px;
+          font-size: 11px;
+          font-weight: 900;
+          white-space: nowrap;
+          text-align: center;
+        }
+
+        .lol-vip-button {
+          border: 1px solid #b88b35;
+          color: #ffe3a0;
+          background: linear-gradient(
+            135deg,
+            #49300c,
+            #79551a
+          );
+          cursor: pointer;
+        }
+
+        .lol-vip-active {
+          border: 1px solid #b88b35;
+          color: #ffe6a8;
+          background: linear-gradient(
+            135deg,
+            #49300c,
+            #79551a
+          );
+        }
+
+        /* PRESENTACIÓN */
         .lol-header {
           display: flex;
           align-items: center;
@@ -327,6 +462,7 @@ export default function LeagueOfLegendsIdPage() {
           height: 70px;
           display: grid;
           place-items: center;
+          flex-shrink: 0;
           border-radius: 18px;
           background: linear-gradient(135deg, #6841dc, #282b65);
           font-size: 32px;
@@ -340,7 +476,7 @@ export default function LeagueOfLegendsIdPage() {
           margin: 0 0 5px;
         }
 
-        .lol-header h1 {
+        .lol-header h2 {
           margin: 0;
           font-size: clamp(25px, 5vw, 38px);
           font-weight: 900;
@@ -351,6 +487,7 @@ export default function LeagueOfLegendsIdPage() {
           margin: 7px 0 0;
         }
 
+        /* SECCIONES */
         .lol-section {
           padding: 22px;
           margin-bottom: 22px;
@@ -381,6 +518,7 @@ export default function LeagueOfLegendsIdPage() {
           font-size: 13px;
         }
 
+        /* OFERTAS */
         .lol-offers {
           display: grid;
           grid-template-columns: repeat(
@@ -431,6 +569,7 @@ export default function LeagueOfLegendsIdPage() {
           font-weight: 900;
         }
 
+        /* FORMULARIO */
         .lol-form-section form {
           display: flex;
           flex-direction: column;
@@ -477,6 +616,7 @@ export default function LeagueOfLegendsIdPage() {
           cursor: not-allowed;
         }
 
+        /* MENSAJES */
         .lol-alert {
           padding: 14px 16px;
           border-radius: 11px;
@@ -510,9 +650,30 @@ export default function LeagueOfLegendsIdPage() {
           text-align: center;
         }
 
+        /* MÓVILES */
         @media (max-width: 600px) {
           .lol-page {
-            padding: 18px 12px 40px;
+            padding: 15px 12px 40px;
+          }
+
+          .lol-top-header {
+            gap: 5px;
+            margin-bottom: 25px;
+          }
+
+          .lol-top-header h1 {
+            font-size: 12px;
+          }
+
+          .lol-back {
+            padding: 9px 10px;
+            font-size: 12px;
+          }
+
+          .lol-vip-button,
+          .lol-vip-active {
+            padding: 9px 7px;
+            font-size: 9px;
           }
 
           .lol-section {
@@ -531,6 +692,23 @@ export default function LeagueOfLegendsIdPage() {
 
           .lol-offers {
             grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .lol-top-header h1 {
+            font-size: 10px;
+          }
+
+          .lol-back {
+            padding: 8px 7px;
+            font-size: 11px;
+          }
+
+          .lol-vip-button,
+          .lol-vip-active {
+            font-size: 8px;
+            padding: 8px 5px;
           }
         }
       `}</style>
