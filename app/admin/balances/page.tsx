@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -58,7 +59,15 @@ export default function AdminBalancesPage() {
         );
       }
 
-      setClients(Array.isArray(data.balances) ? data.balances : []);
+      setClients(
+        Array.isArray(data.balances)
+          ? data.balances.map((client: ClientBalance) => ({
+              id: client.id,
+              email: client.email || "Sin correo",
+              balance: Number(client.balance) || 0,
+            }))
+          : []
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -88,13 +97,18 @@ export default function AdminBalancesPage() {
 
     if (!term) return clients;
 
-    return clients.filter((client) =>
-      (client.email || "Sin correo").toLowerCase().includes(term)
+    return clients.filter(
+      (client) =>
+        (client.email || "Sin correo")
+          .toLowerCase()
+          .includes(term) ||
+        client.id.toLowerCase().includes(term)
     );
   }, [clients, search]);
 
+  // Mostrar los cuatro decimales del balance real.
   const formatBalance = (balance: number) =>
-    (Number(balance) || 0).toFixed(2);
+    (Number(balance) || 0).toFixed(4);
 
   return (
     <main className="balances-page">
@@ -148,6 +162,11 @@ export default function AdminBalancesPage() {
         .back-button:active,
         .refresh-button:active {
           transform: scale(0.98);
+        }
+
+        .refresh-button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .summary-card {
@@ -299,6 +318,7 @@ export default function AdminBalancesPage() {
           color: #43f28a;
           font-size: 22px;
           font-weight: 900;
+          font-variant-numeric: tabular-nums;
         }
 
         .empty-state,
@@ -377,16 +397,23 @@ export default function AdminBalancesPage() {
           </button>
         </div>
 
-        <section className="summary-card" aria-label="Resumen de saldos">
+        <section
+          className="summary-card"
+          aria-label="Resumen de saldos"
+        >
           <div className="summary-item">
-            <span className="summary-label">Total de clientes</span>
+            <span className="summary-label">
+              Total de clientes
+            </span>
             <strong className="summary-value">
               {loading ? "…" : clients.length}
             </strong>
           </div>
 
           <div className="summary-item">
-            <span className="summary-label">Saldo total</span>
+            <span className="summary-label">
+              Saldo total
+            </span>
             <strong className="summary-value money">
               {loading ? "…" : formatBalance(totalBalance)}
             </strong>
@@ -404,10 +431,14 @@ export default function AdminBalancesPage() {
 
         <h2 className="section-heading">Usuarios</h2>
 
-        {error && <div className="message error">{error}</div>}
+        {error && (
+          <div className="message error">{error}</div>
+        )}
 
         {loading ? (
-          <div className="message loading">Cargando usuarios y saldos...</div>
+          <div className="message loading">
+            Cargando usuarios y saldos...
+          </div>
         ) : filteredClients.length === 0 ? (
           <div className="empty-state">
             {search.trim()
@@ -428,14 +459,20 @@ export default function AdminBalancesPage() {
                 }
               >
                 <div className="client-info">
-                  <span className="field-label">Usuario</span>
+                  <span className="field-label">
+                    Usuario
+                  </span>
+
                   <span className="client-email">
                     {client.email || "Sin correo"}
                   </span>
                 </div>
 
                 <div className="client-balance">
-                  <span className="field-label">Balance</span>
+                  <span className="field-label">
+                    Balance
+                  </span>
+
                   <span className="client-money">
                     {formatBalance(client.balance)}
                   </span>
@@ -451,7 +488,10 @@ export default function AdminBalancesPage() {
             : `Mostrando ${filteredClients.length} de ${clients.length} usuarios`}
         </div>
 
-        <div className="top-actions" style={{ marginTop: 20, marginBottom: 0 }}>
+        <div
+          className="top-actions"
+          style={{ marginTop: 20, marginBottom: 0 }}
+        >
           <button
             type="button"
             className="refresh-button"
