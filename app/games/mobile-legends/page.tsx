@@ -20,8 +20,6 @@ type Offer = {
   id: string;
   name: string;
   price: number;
-  supplierPrice: number;
-  vipActive: boolean;
 };
 
 type OrderResult = {
@@ -115,20 +113,18 @@ export default function MobileLegendsPage() {
 
         const loadedOffers: Offer[] = data.offers.map(
           (offer: any) => ({
-            id: String(offer.offer_id),
-            name: String(offer.name),
+            id: String(offer.offer_id ?? ""),
+            name: String(offer.name ?? ""),
             price: Number(offer.retail_price),
-            supplierPrice: Number(offer.supplier_price),
-            vipActive: Boolean(offer.vip_active),
           })
         );
 
         const validOffers = loadedOffers.filter(
           (offer) =>
-            offer.id &&
-            offer.name &&
+            offer.id.length > 0 &&
+            offer.name.length > 0 &&
             Number.isFinite(offer.price) &&
-            Number.isFinite(offer.supplierPrice)
+            offer.price > 0
         );
 
         if (validOffers.length === 0) {
@@ -171,8 +167,8 @@ export default function MobileLegendsPage() {
   /*
    * FORMATEAR PRECIOS
    *
-   * Se utilizan los precios exactos del backend.
-   * No se vuelven a calcular en el navegador.
+   * El backend calcula el precio normal o VIP.
+   * El navegador solamente muestra el precio recibido.
    */
 
   function formatPrice(offer: Offer): string {
@@ -184,6 +180,8 @@ export default function MobileLegendsPage() {
    */
 
   function selectOffer(offer: Offer) {
+    if (processing) return;
+
     setSelectedOffer(offer);
 
     setError("");
@@ -243,9 +241,7 @@ export default function MobileLegendsPage() {
     }
 
     if (!/^[0-9]{1,20}$/.test(cleanServerId)) {
-      setError(
-        "El ID del servidor no es válido."
-      );
+      setError("El ID del servidor no es válido.");
       return;
     }
 
@@ -282,8 +278,8 @@ export default function MobileLegendsPage() {
       }
 
       /*
-       * La clave se conserva si ocurre un error de conexión.
-       * Así, un reintento no crea una segunda orden.
+       * La misma clave se conserva si hay un error
+       * de conexión para evitar pedidos duplicados.
        */
 
       if (!idempotencyKeyRef.current) {
@@ -317,18 +313,17 @@ export default function MobileLegendsPage() {
       }
 
       /*
-       * El proveedor pudo rechazar el pedido y devolver
-       * un estado REFUNDED. También debemos mostrarlo.
+       * Si el backend devuelve un número de orden
+       * y un estado, mostramos el resultado.
        */
 
-      if (
-        data?.orderNumber &&
-        data?.status
-      ) {
+      if (data?.orderNumber && data?.status) {
         setOrderNumber(data.orderNumber);
+
         setSupplierOrderId(
           data.supplierOrderId || ""
         );
+
         setOrderStatus(data.status);
 
         setOrderCreated(true);
@@ -342,6 +337,11 @@ export default function MobileLegendsPage() {
               block: "start",
             });
         }, 100);
+
+        /*
+         * Solo se libera la clave cuando el pedido
+         * llega a un estado final.
+         */
 
         if (
           data.status === "COMPLETED" ||
@@ -362,8 +362,7 @@ export default function MobileLegendsPage() {
 
       if (!response.ok || !data?.ok) {
         throw new Error(
-          data?.error ||
-          "No se pudo crear el pedido."
+          data?.error || "No se pudo crear el pedido."
         );
       }
 
@@ -563,6 +562,7 @@ export default function MobileLegendsPage() {
                   <button
                     type="button"
                     key={offer.id}
+                    disabled={processing}
                     className={`mobile-legends-offer ${
                       selectedOffer?.id === offer.id
                         ? "selected"
@@ -636,6 +636,7 @@ export default function MobileLegendsPage() {
                     }}
                     placeholder="Ej: 123456789"
                     maxLength={20}
+                    disabled={processing}
                   />
                 </div>
 
@@ -660,13 +661,14 @@ export default function MobileLegendsPage() {
                     }}
                     placeholder="Ej: 1234"
                     maxLength={20}
+                    disabled={processing}
                   />
                 </div>
 
                 <button
                   type="submit"
                   className="mobile-legends-create-order-button"
-                  disabled={vipLoading}
+                  disabled={vipLoading || processing}
                 >
                   CONTINUAR
                 </button>
@@ -1006,6 +1008,11 @@ export default function MobileLegendsPage() {
         .mobile-legends-offer.selected {
           border-color: #d71920;
           box-shadow: 0 0 0 1px rgba(215, 25, 32, 0.25);
+        }
+
+        .mobile-legends-offer:disabled {
+          opacity: 0.6;
+          cursor: wait;
         }
 
         .mobile-legends-offer-left {
