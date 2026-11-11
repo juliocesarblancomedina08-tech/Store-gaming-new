@@ -7,8 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function getBearerToken(request: NextRequest) {
-  const authorization =
-    request.headers.get("authorization") || "";
+  const authorization = request.headers.get("authorization") || "";
 
   if (!authorization.toLowerCase().startsWith("bearer ")) {
     return null;
@@ -37,6 +36,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const adminId = "c1d707aa-9454-4a7a-b6f6-1c776a818286";
+
+    const { data: adminProfile, error: adminError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select("id,email,balance")
+        .eq("id", adminId)
+        .maybeSingle();
+
+    if (adminError) {
+      console.error("ERROR CONSULTANDO ADMIN:", adminError);
+
+      return NextResponse.json(
+        { error: "Error consultando el perfil administrativo." },
+        { status: 500 }
+      );
+    }
+
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("id,email,balance")
@@ -57,32 +74,23 @@ export async function GET(request: NextRequest) {
       balance: Number(profile.balance) || 0,
     }));
 
-    const totalBalance = balances.reduce(
-      (total, profile) => total + profile.balance,
-      0
+    const adminInList = balances.find(
+      (profile) => profile.id === adminId
     );
 
-    // DIAGNÓSTICO TEMPORAL DEL BALANCE DEL ADMIN
-    const adminBalance = balances.find(
-      (client) =>
-        client.email.toLowerCase() ===
-        "juliocesarblancomedina08@gmail.com"
-    );
-
-    console.log(
-      "BALANCE ADMIN JULIO:",
-      JSON.stringify(adminBalance)
-    );
+    console.log("DIAGNOSTICO BALANCE ADMIN:", {
+      directProfile: adminProfile,
+      profileInList: adminInList,
+    });
 
     return NextResponse.json(
       {
         ok: true,
         balances,
         totalClients: balances.length,
-        totalBalance,
         diagnostic: {
-          adminEmail: adminBalance?.email ?? null,
-          adminBalance: adminBalance?.balance ?? null,
+          directProfile: adminProfile,
+          profileInList: adminInList,
         },
       },
       {
