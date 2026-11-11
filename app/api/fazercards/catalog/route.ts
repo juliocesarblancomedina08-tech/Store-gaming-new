@@ -17,27 +17,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Falta FAZERCARDS_API_KEY en las variables de entorno.",
+          error: "Falta FAZERCARDS_API_KEY en las variables de entorno."
         },
         { status: 500 }
       );
     }
 
-    const response = await fetch(
-      `${FAZERCARDS_API}/topups`,
-      {
-        method: "GET",
-        headers: {
-          "X-API-Key": API_KEY,
-          Accept: "application/json",
-          "User-Agent": "STORE-GAMING/1.0",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(20000),
-      }
-    );
+    const categoryId = request.nextUrl.searchParams
+      .get("category_id")
+      ?.trim();
+
+    // Si hay categoría, consultar sus ofertas.
+    // Si no hay categoría, consultar el catálogo general.
+    const endpoint = categoryId
+      ? `${FAZERCARDS_API}/topups/offers?category_id=${encodeURIComponent(categoryId)}`
+      : `${FAZERCARDS_API}/topups?limit=200`;
+
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        "X-API-Key": API_KEY,
+        Accept: "application/json",
+        "User-Agent": "STORE-GAMING/1.0"
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000)
+    });
 
     const text = await response.text();
+
     let data: any;
 
     try {
@@ -47,76 +55,26 @@ export async function GET(request: NextRequest) {
         {
           ok: false,
           supplier: "FazerCards",
-          status: response.status,
-          error: "FazerCards no devolvió JSON válido.",
-          raw: text.slice(0, 3000),
+          error: "Respuesta JSON inválida.",
+          raw: text.slice(0, 2000)
         },
         { status: 502 }
       );
     }
 
-    if (!response.ok) {
+    if (!response.ok || data?.ok === false) {
       return NextResponse.json(
         {
           ok: false,
           supplier: "FazerCards",
           status: response.status,
-          error: data,
+          error: data?.error ?? data
         },
         { status: 502 }
       );
     }
 
-    const catalog = data?.data ?? data?.catalog ?? data;
-
-    const items = Array.isArray(catalog?.items)
-      ? catalog.items
-      : Array.isArray(catalog)
-        ? catalog
-        : [];
-
-    const categoryId = request.nextUrl.searchParams
-      .get("category_id")
-      ?.trim();
-
-    // CONSULTAR UNA CATEGORÍA ESPECÍFICA
-    if (categoryId) {
-      const game = items.find(
-        (item: any) =>
-          String(item?.category_id ?? "") === categoryId
-      );
-
-      if (!game) {
-        return NextResponse.json(
-          {
-            ok: false,
-            supplier: "FazerCards",
-            error: "Juego no encontrado en el catálogo.",
-            category_id: categoryId,
-            available_categories: items.map((item: any) => ({
-              category_id: item?.category_id ?? null,
-              name: item?.name ?? item?.title ?? null,
-            })),
-          },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({
-        ok: true,
-        supplier: "FazerCards",
-        category_id: categoryId,
-        game,
-      });
-    }
-
-    // CONSULTAR TODOS LOS JUEGOS
-    return NextResponse.json({
-      ok: true,
-      supplier: "FazerCards",
-      count: items.length,
-      catalog: items.length ? items : catalog,
-    });
+    return NextResponse.json(data);
 
   } catch (error) {
     console.error("[FazerCards Catalog]", error);
@@ -128,7 +86,7 @@ export async function GET(request: NextRequest) {
         error:
           error instanceof Error
             ? error.message
-            : "Error desconocido",
+            : "Error desconocido"
       },
       { status: 500 }
     );
