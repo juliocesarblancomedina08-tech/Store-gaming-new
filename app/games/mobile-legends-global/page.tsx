@@ -275,6 +275,7 @@ export default function MobileLegendsGlobalPage() {
           type="button"
           className="mobile-legends-back"
           onClick={() => router.push("/top-up")}
+          aria-label="Volver"
         >
           ←
         </button>
@@ -282,6 +283,22 @@ export default function MobileLegendsGlobalPage() {
         <div className="mobile-legends-header-title">
           <strong>Legends Mobile</strong>
           <span>Global</span>
+        </div>
+
+        <div className="mobile-legends-vip-container">
+          {vipActive ? (
+            <span className="mobile-legends-vip-active">
+              ⭐ VIP ACTIVO
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="mobile-legends-vip-button"
+              onClick={() => router.push("/vip")}
+            >
+              ⭐ COMPRAR VIP
+            </button>
+          )}
         </div>
       </header>
 
@@ -731,9 +748,10 @@ export default function MobileLegendsGlobalPage() {
 
         .mobile-legends-header {
           height: 70px;
-          display: flex;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          gap: 14px;
+          gap: 10px;
           padding: 0 20px;
           background: rgba(10, 10, 10, 0.96);
           border-bottom: 1px solid
@@ -754,12 +772,17 @@ export default function MobileLegendsGlobalPage() {
           color: #fff;
           font-size: 24px;
           cursor: pointer;
+          justify-self: start;
         }
 
         .mobile-legends-header-title {
           display: flex;
           flex-direction: column;
+          align-items: center;
+          justify-content: center;
           line-height: 1.1;
+          text-align: center;
+          white-space: nowrap;
         }
 
         .mobile-legends-header-title strong {
@@ -770,6 +793,46 @@ export default function MobileLegendsGlobalPage() {
           color: #aaa;
           font-size: 13px;
           margin-top: 4px;
+        }
+
+        .mobile-legends-vip-container {
+          justify-self: end;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          min-width: 0;
+        }
+
+        .mobile-legends-vip-active {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 9px 12px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 195, 55, 0.35);
+          background: rgba(255, 190, 40, 0.12);
+          color: #ffd15c;
+          font-size: 11px;
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .mobile-legends-vip-button {
+          min-height: 40px;
+          padding: 0 12px;
+          border: 1px solid rgba(255, 195, 55, 0.4);
+          border-radius: 10px;
+          background: linear-gradient(135deg, #b87913, #f4c44e);
+          color: #17100a;
+          font-size: 11px;
+          font-weight: 900;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+        }
+
+        .mobile-legends-vip-button:hover {
+          transform: translateY(-2px);
         }
 
         .mobile-legends-hero {
@@ -1396,7 +1459,32 @@ export default function MobileLegendsGlobalPage() {
 
         @media (max-width: 520px) {
           .mobile-legends-header {
-            padding: 0 14px;
+            padding: 0 10px;
+            gap: 5px;
+          }
+
+          .mobile-legends-header-title strong {
+            font-size: 15px;
+          }
+
+          .mobile-legends-header-title span {
+            font-size: 11px;
+          }
+
+          .mobile-legends-back {
+            width: 38px;
+            height: 38px;
+          }
+
+          .mobile-legends-vip-button {
+            min-height: 36px;
+            padding: 0 8px;
+            font-size: 9px;
+          }
+
+          .mobile-legends-vip-active {
+            padding: 8px;
+            font-size: 9px;
           }
 
           .mobile-legends-hero,
@@ -1448,6 +1536,36 @@ export default function MobileLegendsGlobalPage() {
 
           .mobile-legends-service {
             padding: 17px;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .mobile-legends-header {
+            padding: 0 7px;
+            gap: 3px;
+          }
+
+          .mobile-legends-header-title strong {
+            font-size: 13px;
+          }
+
+          .mobile-legends-header-title span {
+            font-size: 10px;
+          }
+
+          .mobile-legends-vip-button {
+            padding: 0 6px;
+            font-size: 8px;
+          }
+
+          .mobile-legends-vip-active {
+            padding: 7px 6px;
+            font-size: 8px;
+          }
+
+          .mobile-legends-back {
+            width: 34px;
+            height: 36px;
           }
         }
       `}</style>
