@@ -49,6 +49,62 @@ export default function SausageManPage() {
   const [processing, setProcessing] =
     useState(false);
 
+  // Estado VIP
+  const [vipActive, setVipActive] =
+    useState(false);
+
+  const [vipLoading, setVipLoading] =
+    useState(true);
+
+  // Consultar estado VIP
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadVipStatus() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("vip_expires_at")
+          .eq("id", user.id)
+          .single();
+
+        if (error) throw error;
+
+        const expiration = data?.vip_expires_at
+          ? new Date(data.vip_expires_at).getTime()
+          : 0;
+
+        if (mounted) {
+          setVipActive(
+            Number.isFinite(expiration) &&
+            expiration > Date.now()
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Error consultando VIP:",
+          error
+        );
+      } finally {
+        if (mounted) {
+          setVipLoading(false);
+        }
+      }
+    }
+
+    loadVipStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (orderCreated) {
       setTimeout(() => {
@@ -237,12 +293,18 @@ export default function SausageManPage() {
     router.push("/top-up");
   }
 
+  function goToVip() {
+    router.push("/vip");
+  }
+
   return (
     <main className="sausage-man-page">
 
       <div className="sausage-man-background" />
 
+      {/* HEADER */}
       <header className="sausage-man-header">
+
         <button
           type="button"
           className="sausage-man-back"
@@ -252,17 +314,38 @@ export default function SausageManPage() {
         </button>
 
         <div className="sausage-man-header-title">
-          🛒 STORE GAMING 🎮
+          SAUSAGE MAN
         </div>
 
-        <button
-          type="button"
-          className="sausage-man-cart"
-          onClick={goToOrders}
-          aria-label="Pedidos"
-        >
-          🛍️
-        </button>
+        <div className="sausage-man-header-actions">
+
+          {!vipLoading && (
+            vipActive ? (
+              <div className="sausage-man-vip-active">
+                ⭐ VIP ACTIVO
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="sausage-man-vip-button"
+                onClick={goToVip}
+              >
+                ⭐ COMPRAR VIP
+              </button>
+            )
+          )}
+
+          <button
+            type="button"
+            className="sausage-man-cart"
+            onClick={goToOrders}
+            aria-label="Pedidos"
+          >
+            🛍️
+          </button>
+
+        </div>
+
       </header>
 
       <section className="sausage-man-container">
@@ -300,9 +383,7 @@ export default function SausageManPage() {
           type="button"
           className="sausage-man-offers-toggle"
           onClick={() =>
-            setShowOffers(
-              !showOffers
-            )
+            setShowOffers(!showOffers)
           }
         >
           <span>
@@ -329,15 +410,12 @@ export default function SausageManPage() {
                   type="button"
                   key={offer.id}
                   className={
-                    selectedOffer?.id ===
-                    offer.id
+                    selectedOffer?.id === offer.id
                       ? "sausage-man-offer selected"
                       : "sausage-man-offer"
                   }
                   onClick={() =>
-                    handleSelectOffer(
-                      offer
-                    )
+                    handleSelectOffer(offer)
                   }
                 >
                   <div className="sausage-man-offer-left">
@@ -583,8 +661,7 @@ export default function SausageManPage() {
         .sausage-man-page {
           position: relative;
           min-height: 100vh;
-          background:
-            #050505;
+          background: #050505;
           color: #fff;
           overflow-x: hidden;
         }
@@ -604,17 +681,19 @@ export default function SausageManPage() {
           pointer-events: none;
         }
 
+        /* HEADER */
+
         .sausage-man-header {
           position: sticky;
           top: 0;
           z-index: 20;
-          height: 58px;
-          display: flex;
+          min-height: 62px;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          justify-content: space-between;
+          gap: 8px;
           padding: 0 12px;
-          background:
-            rgba(5, 5, 5, 0.96);
+          background: rgba(5, 5, 5, 0.97);
           border-bottom:
             1px solid
             rgba(255, 255, 255, 0.08);
@@ -622,24 +701,77 @@ export default function SausageManPage() {
         }
 
         .sausage-man-header-title {
+          grid-column: 2;
+          text-align: center;
           font-size: 14px;
-          font-weight: 900;
-          letter-spacing: 0.3px;
+          font-weight: 1000;
+          letter-spacing: 0.5px;
           white-space: nowrap;
         }
 
-        .sausage-man-back,
-        .sausage-man-cart {
+        .sausage-man-back {
+          justify-self: start;
           border: 0;
           background: transparent;
           color: #fff;
           cursor: pointer;
           font-size: 13px;
           font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .sausage-man-header-actions {
+          grid-column: 3;
+          justify-self: end;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .sausage-man-vip-button {
+          min-height: 32px;
+          padding: 0 9px;
+          border: 1px solid #e8ad32;
+          border-radius: 7px;
+          background:
+            linear-gradient(
+              135deg,
+              #4a3108,
+              #a66b0b
+            );
+          color: #ffe6a0;
+          font-size: 9px;
+          font-weight: 1000;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+
+        .sausage-man-vip-button:active {
+          transform: scale(0.96);
+        }
+
+        .sausage-man-vip-active {
+          padding: 8px 9px;
+          border: 1px solid
+            rgba(255, 205, 75, 0.45);
+          border-radius: 7px;
+          background:
+            rgba(190, 130, 20, 0.15);
+          color: #ffd76a;
+          font-size: 9px;
+          font-weight: 1000;
+          white-space: nowrap;
         }
 
         .sausage-man-cart {
+          border: 0;
+          background: transparent;
+          color: #fff;
+          cursor: pointer;
           font-size: 20px;
+          flex-shrink: 0;
         }
 
         .sausage-man-container {
@@ -757,8 +889,7 @@ export default function SausageManPage() {
         }
 
         .sausage-man-arrow {
-          transition:
-            transform 0.2s ease;
+          transition: transform 0.2s ease;
           color: #ff2b2b;
         }
 
@@ -1096,8 +1227,7 @@ export default function SausageManPage() {
 
         .sausage-man-service-grid {
           display: grid;
-          grid-template-columns:
-            repeat(3, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 8px;
           margin-top: 14px;
         }
@@ -1135,9 +1265,41 @@ export default function SausageManPage() {
             rgba(255, 255, 255, 0.06);
         }
 
+        /* ADAPTACIÓN PARA MÓVILES */
+
         @media (max-width: 480px) {
+          .sausage-man-header {
+            min-height: 60px;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 5px;
+            padding: 0 8px;
+          }
+
           .sausage-man-header-title {
-            font-size: 13px;
+            font-size: 12px;
+          }
+
+          .sausage-man-back {
+            font-size: 11px;
+          }
+
+          .sausage-man-header-actions {
+            gap: 5px;
+          }
+
+          .sausage-man-vip-button {
+            min-height: 30px;
+            padding: 0 6px;
+            font-size: 8px;
+          }
+
+          .sausage-man-vip-active {
+            padding: 7px 6px;
+            font-size: 8px;
+          }
+
+          .sausage-man-cart {
+            font-size: 18px;
           }
 
           .sausage-man-banner {
@@ -1160,6 +1322,36 @@ export default function SausageManPage() {
             font-size: 15px;
           }
         }
+
+        @media (max-width: 350px) {
+          .sausage-man-header {
+            padding: 0 5px;
+            gap: 3px;
+          }
+
+          .sausage-man-header-title {
+            font-size: 10px;
+          }
+
+          .sausage-man-back {
+            font-size: 10px;
+          }
+
+          .sausage-man-vip-button {
+            font-size: 7px;
+            padding: 0 5px;
+          }
+
+          .sausage-man-vip-active {
+            font-size: 7px;
+            padding: 7px 5px;
+          }
+
+          .sausage-man-cart {
+            font-size: 16px;
+          }
+        }
+
       `}</style>
     </main>
   );
