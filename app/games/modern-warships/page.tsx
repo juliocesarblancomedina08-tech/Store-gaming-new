@@ -40,6 +40,9 @@ export default function ModernWarshipsPage() {
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
 
+  const [vipActive, setVipActive] = useState(false);
+  const [vipLoading, setVipLoading] = useState(true);
+
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -60,8 +63,24 @@ export default function ModernWarshipsPage() {
         if (typeof data?.profile?.balance === "number") {
           setBalance(data.profile.balance);
         }
+
+        const profile = data?.profile;
+
+        const activeByFlag = profile?.vip_active === true;
+
+        const vipExpiration = profile?.vip_expires_at
+          ? new Date(profile.vip_expires_at).getTime()
+          : 0;
+
+        const activeByExpiration =
+          Number.isFinite(vipExpiration) &&
+          vipExpiration > Date.now();
+
+        setVipActive(activeByFlag || activeByExpiration);
       } catch {
         // La información del usuario se puede cargar más tarde.
+      } finally {
+        setVipLoading(false);
       }
     };
 
@@ -126,39 +145,89 @@ export default function ModernWarshipsPage() {
       <style jsx>{`
         .game-service-page {
           min-height: 100vh;
-          padding: 30px 16px 50px;
+          padding: 0 16px 50px;
           color: #fff;
           background:
             linear-gradient(rgba(3, 7, 18, 0.88), rgba(3, 7, 18, 0.96)),
             url("/images/battle-royale-bg.jpg") center/cover fixed;
         }
 
-        .game-service-container {
-          max-width: 1050px;
-          margin: 0 auto;
-        }
-
         .game-service-header {
-          display: flex;
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          justify-content: space-between;
-          gap: 15px;
-          margin-bottom: 25px;
+          gap: 10px;
+          min-height: 65px;
+          margin: 0 -16px 25px;
+          padding: 0 12px;
+          background: rgba(3, 7, 18, 0.96);
+          border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+          backdrop-filter: blur(12px);
         }
 
         .game-service-header h1 {
           margin: 0;
-          font-size: clamp(25px, 5vw, 38px);
+          text-align: center;
+          font-size: clamp(14px, 3.5vw, 20px);
+          font-weight: 900;
+          white-space: nowrap;
+        }
+
+        .back-button {
+          justify-self: start;
+          width: 40px;
+          height: 40px;
+          border: 1px solid #334155;
+          border-radius: 11px;
+          color: #fff;
+          background: #111827;
+          font-size: 21px;
+          cursor: pointer;
+        }
+
+        .header-vip {
+          justify-self: end;
+          min-width: 0;
+        }
+
+        .vip-button,
+        .vip-active,
+        .vip-loading {
+          min-height: 37px;
+          padding: 0 11px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 10px;
+          white-space: nowrap;
+          font-size: 10px;
           font-weight: 900;
         }
 
-        .game-service-header button {
-          padding: 10px 16px;
-          border: 1px solid #334155;
-          border-radius: 10px;
+        .vip-button {
+          border: 1px solid rgba(255, 190, 50, 0.55);
           color: #fff;
-          background: #111827;
+          background: linear-gradient(135deg, #8d5b08, #d69b25);
           cursor: pointer;
+        }
+
+        .vip-active {
+          border: 1px solid rgba(255, 205, 80, 0.5);
+          color: #ffd66b;
+          background: rgba(255, 190, 40, 0.13);
+        }
+
+        .vip-loading {
+          color: #aaa;
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .game-service-container {
+          max-width: 1050px;
+          margin: 0 auto;
         }
 
         .game-service-card {
@@ -280,13 +349,61 @@ export default function ModernWarshipsPage() {
           .game-service-card {
             padding: 17px;
           }
+
+          .game-service-header {
+            gap: 5px;
+          }
+
+          .vip-button,
+          .vip-active,
+          .vip-loading {
+            min-height: 34px;
+            padding: 0 7px;
+            font-size: 9px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .game-service-header h1 {
+            font-size: 12px;
+          }
+
+          .vip-button,
+          .vip-active {
+            padding: 0 5px;
+            font-size: 8px;
+          }
         }
       `}</style>
 
       <div className="game-service-container">
         <header className="game-service-header">
+          <button
+            className="back-button"
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Volver"
+          >
+            ←
+          </button>
+
           <h1>MODERN WARSHIPS</h1>
-          <button onClick={() => router.back()}>← Volver</button>
+
+          <div className="header-vip">
+            {vipLoading ? (
+              <div className="vip-loading">VIP...</div>
+            ) : vipActive ? (
+              <div className="vip-active">⭐ VIP ACTIVO</div>
+            ) : (
+              <button
+                type="button"
+                className="vip-button"
+                onClick={() => router.push("/vip")}
+              >
+                ⭐ COMPRAR VIP
+              </button>
+            )}
+          </div>
         </header>
 
         <section className="game-service-card">
