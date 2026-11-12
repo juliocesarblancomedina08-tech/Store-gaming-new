@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { FormEvent } from "react";
@@ -313,11 +312,6 @@ export default function MobileLegendsPage() {
         );
       }
 
-      /*
-       * Si el backend devuelve un número de orden
-       * y un estado, mostramos el resultado.
-       */
-
       if (data?.orderNumber && data?.status) {
         setOrderNumber(data.orderNumber);
 
@@ -338,11 +332,6 @@ export default function MobileLegendsPage() {
               block: "start",
             });
         }, 100);
-
-        /*
-         * Solo se libera la clave cuando el pedido
-         * llega a un estado final.
-         */
 
         if (
           data.status === "COMPLETED" ||
@@ -455,12 +444,12 @@ export default function MobileLegendsPage() {
     router.push("/orders");
   }
 
-  /*
-   * VOLVER A LA TIENDA
-   */
-
   function goToStore() {
     router.push("/top-up");
+  }
+
+  function goToVip() {
+    router.push("/vip");
   }
 
   /*
@@ -474,6 +463,7 @@ export default function MobileLegendsPage() {
           type="button"
           className="mobile-legends-back-button"
           onClick={goToStore}
+          aria-label="Volver a la tienda"
         >
           ←
         </button>
@@ -483,14 +473,34 @@ export default function MobileLegendsPage() {
           <small>United States</small>
         </div>
 
-        <button
-          type="button"
-          className="mobile-legends-orders-button"
-          onClick={goToOrders}
-          aria-label="Ver pedidos"
-        >
-          📋
-        </button>
+        <div className="mobile-legends-header-actions">
+          {vipLoading ? (
+            <div className="mobile-legends-vip-loading">
+              VIP...
+            </div>
+          ) : vipActive ? (
+            <div className="mobile-legends-vip-active">
+              ⭐ VIP ACTIVO
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="mobile-legends-vip-button"
+              onClick={goToVip}
+            >
+              ⭐ COMPRAR VIP
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="mobile-legends-orders-button"
+            onClick={goToOrders}
+            aria-label="Ver pedidos"
+          >
+            📋
+          </button>
+        </div>
       </header>
 
       <section className="mobile-legends-content">
@@ -515,12 +525,6 @@ export default function MobileLegendsPage() {
             de servidor antes de realizar la compra.
           </p>
         </div>
-
-        {vipActive && (
-          <div className="mobile-legends-vip-notice">
-            ⭐ PRECIO VIP ACTIVADO
-          </div>
-        )}
 
         <button
           type="button"
@@ -821,20 +825,21 @@ export default function MobileLegendsPage() {
           position: sticky;
           top: 0;
           z-index: 20;
-          height: 64px;
+          min-height: 64px;
           display: grid;
-          grid-template-columns: 48px 1fr 48px;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          padding: 0 10px;
-          background: rgba(0, 0, 0, 0.92);
+          gap: 8px;
+          padding: 0 12px;
+          background: rgba(0, 0, 0, 0.94);
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           backdrop-filter: blur(12px);
         }
 
         .mobile-legends-back-button,
         .mobile-legends-orders-button {
-          width: 42px;
-          height: 42px;
+          width: 40px;
+          height: 40px;
           border: 0;
           border-radius: 12px;
           background: rgba(255, 255, 255, 0.08);
@@ -846,17 +851,23 @@ export default function MobileLegendsPage() {
           cursor: pointer;
         }
 
+        .mobile-legends-back-button {
+          justify-self: start;
+        }
+
         .mobile-legends-header-title {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           text-align: center;
+          min-width: 0;
         }
 
         .mobile-legends-header-title span {
-          font-size: 17px;
+          font-size: 16px;
           font-weight: 900;
+          white-space: nowrap;
         }
 
         .mobile-legends-header-title small {
@@ -865,6 +876,59 @@ export default function MobileLegendsPage() {
           font-size: 10px;
           text-transform: uppercase;
           letter-spacing: 1px;
+        }
+
+        .mobile-legends-header-actions {
+          justify-self: end;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 7px;
+          min-width: 0;
+        }
+
+        .mobile-legends-vip-button,
+        .mobile-legends-vip-active,
+        .mobile-legends-vip-loading {
+          min-height: 36px;
+          padding: 0 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 10px;
+          white-space: nowrap;
+          font-size: 10px;
+          font-weight: 900;
+        }
+
+        .mobile-legends-vip-button {
+          border: 1px solid rgba(255, 190, 50, 0.55);
+          background: linear-gradient(
+            135deg,
+            #8d5b08,
+            #d69b25
+          );
+          color: #fff;
+          cursor: pointer;
+          box-shadow: 0 0 12px rgba(255, 180, 30, 0.16);
+        }
+
+        .mobile-legends-vip-active {
+          border: 1px solid rgba(255, 205, 80, 0.5);
+          background: rgba(255, 190, 40, 0.13);
+          color: #ffd66b;
+        }
+
+        .mobile-legends-vip-loading {
+          color: #aaa;
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .mobile-legends-orders-button {
+          width: 36px;
+          height: 36px;
+          font-size: 17px;
+          flex: 0 0 auto;
         }
 
         .mobile-legends-content {
@@ -932,18 +996,6 @@ export default function MobileLegendsPage() {
           color: #ccc;
           font-size: 12px;
           line-height: 1.5;
-        }
-
-        .mobile-legends-vip-notice {
-          margin-top: 12px;
-          padding: 12px;
-          border: 1px solid rgba(255, 190, 50, 0.4);
-          border-radius: 11px;
-          background: rgba(255, 180, 30, 0.1);
-          color: #ffd36a;
-          font-size: 12px;
-          font-weight: 900;
-          text-align: center;
         }
 
         .mobile-legends-offers-toggle {
@@ -1337,6 +1389,33 @@ export default function MobileLegendsPage() {
         }
 
         @media (max-width: 480px) {
+          .mobile-legends-header {
+            padding: 0 8px;
+            gap: 5px;
+          }
+
+          .mobile-legends-header-title span {
+            font-size: 14px;
+          }
+
+          .mobile-legends-vip-button,
+          .mobile-legends-vip-active,
+          .mobile-legends-vip-loading {
+            min-height: 34px;
+            padding: 0 7px;
+            font-size: 9px;
+          }
+
+          .mobile-legends-header-actions {
+            gap: 5px;
+          }
+
+          .mobile-legends-orders-button {
+            width: 32px;
+            height: 34px;
+            font-size: 15px;
+          }
+
           .mobile-legends-banner img {
             height: 185px;
           }
@@ -1347,6 +1426,22 @@ export default function MobileLegendsPage() {
 
           .mobile-legends-banner-text strong {
             font-size: 22px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .mobile-legends-header-title span {
+            font-size: 12px;
+          }
+
+          .mobile-legends-vip-button,
+          .mobile-legends-vip-active {
+            font-size: 8px;
+            padding: 0 5px;
+          }
+
+          .mobile-legends-orders-button {
+            width: 29px;
           }
         }
       `}</style>
