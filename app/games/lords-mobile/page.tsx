@@ -46,6 +46,53 @@ export default function LordsMobilePage() {
   const [orderStatus, setOrderStatus] = useState("");
   const [processing, setProcessing] = useState(false);
 
+  const [vipActive, setVipActive] = useState(false);
+
+  // CONSULTAR ESTADO VIP
+  useEffect(() => {
+    let active = true;
+
+    async function checkVipStatus() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          if (active) setVipActive(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("vip_expires_at")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const expiration = data?.vip_expires_at
+          ? new Date(data.vip_expires_at).getTime()
+          : 0;
+
+        if (active) {
+          setVipActive(expiration > Date.now());
+        }
+      } catch (err) {
+        console.error("ERROR CONSULTANDO VIP:", err);
+
+        if (active) setVipActive(false);
+      }
+    }
+
+    void checkVipStatus();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // CARGAR OFERTAS
   useEffect(() => {
     let active = true;
 
@@ -200,9 +247,6 @@ export default function LordsMobilePage() {
 
       /*
        * 4. ENVIAR ORDEN
-       *
-       * Esta ruta debe existir en el servidor y validar
-       * el precio, el usuario, el saldo y la oferta.
        */
 
       const response = await fetch(
@@ -307,7 +351,8 @@ export default function LordsMobilePage() {
 
   return (
     <main className="lords-mobile-page">
-      {/* HEADER */}
+
+      {/* HEADER SUPERIOR */}
 
       <header className="lords-mobile-header">
         <button
@@ -316,17 +361,32 @@ export default function LordsMobilePage() {
           onClick={() => router.push("/top-up")}
           aria-label="Volver a las recargas"
         >
-          ←
+          ← Volver
         </button>
 
-        <h1>Lords Mobile</h1>
+        <h1>LORDS MOBILE</h1>
 
-        <div className="lords-mobile-header-space" />
+        <div className="lords-mobile-vip-container">
+          {vipActive ? (
+            <div className="lords-mobile-vip-active">
+              ⭐ VIP ACTIVO
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="lords-mobile-vip-button"
+              onClick={() => router.push("/vip")}
+            >
+              ⭐ COMPRAR VIP
+            </button>
+          )}
+        </div>
       </header>
 
       {/* CONTENIDO */}
 
       <section className="lords-mobile-content">
+
         {/* BANNER */}
 
         <div className="lords-mobile-banner">
@@ -555,41 +615,74 @@ export default function LordsMobilePage() {
           padding-bottom: 30px;
         }
 
+        /* HEADER */
+
         .lords-mobile-header {
           position: sticky;
           top: 0;
           z-index: 20;
-          display: flex;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          justify-content: space-between;
+          gap: 8px;
           min-height: 58px;
           padding: 8px 12px;
-          background: rgba(0, 0, 0, 0.88);
+          background: rgba(0, 0, 0, 0.92);
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(10px);
         }
 
         .lords-mobile-header h1 {
           margin: 0;
-          font-size: 19px;
-          font-weight: 800;
+          color: #fff;
+          font-size: clamp(13px, 2.5vw, 19px);
+          font-weight: 900;
           text-align: center;
+          white-space: nowrap;
         }
 
         .lords-mobile-back-button {
-          width: 40px;
-          height: 40px;
-          border: 0;
+          justify-self: start;
+          min-height: 40px;
+          padding: 9px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.13);
           border-radius: 10px;
           background: rgba(255, 255, 255, 0.08);
           color: #fff;
-          font-size: 25px;
+          font-size: 13px;
+          font-weight: 700;
+          white-space: nowrap;
           cursor: pointer;
         }
 
-        .lords-mobile-header-space {
-          width: 40px;
+        .lords-mobile-vip-container {
+          justify-self: end;
+          display: flex;
+          justify-content: flex-end;
         }
+
+        .lords-mobile-vip-button,
+        .lords-mobile-vip-active {
+          padding: 10px 11px;
+          border: 1px solid #b88b35;
+          border-radius: 10px;
+          background: linear-gradient(
+            135deg,
+            #49300c,
+            #79551a
+          );
+          color: #ffe6a8;
+          font-size: 10px;
+          font-weight: 900;
+          text-align: center;
+          white-space: nowrap;
+        }
+
+        .lords-mobile-vip-button {
+          cursor: pointer;
+        }
+
+        /* CONTENIDO */
 
         .lords-mobile-content {
           width: min(100%, 680px);
@@ -638,6 +731,8 @@ export default function LordsMobilePage() {
           line-height: 1.5;
         }
 
+        /* BOTÓN OFERTAS */
+
         .lords-mobile-offers-toggle {
           width: 100%;
           margin-top: 14px;
@@ -663,6 +758,8 @@ export default function LordsMobilePage() {
           flex-direction: column;
           gap: 8px;
         }
+
+        /* TARJETAS DE OFERTAS */
 
         .lords-mobile-offer {
           width: 100%;
@@ -736,6 +833,8 @@ export default function LordsMobilePage() {
           font-size: 13px;
           line-height: 1.5;
         }
+
+        /* FORMULARIO */
 
         .lords-mobile-order-section {
           margin-top: 16px;
@@ -830,6 +929,8 @@ export default function LordsMobilePage() {
           cursor: wait;
         }
 
+        /* ORDEN CREADA */
+
         .lords-mobile-success-section {
           margin-top: 18px;
           padding: 22px 16px;
@@ -905,12 +1006,16 @@ export default function LordsMobilePage() {
           color: #fff;
         }
 
+        /* FOOTER */
+
         .lords-mobile-footer {
           padding: 25px 12px 5px;
           color: #888;
           font-size: 12px;
           text-align: center;
         }
+
+        /* RESPONSIVE */
 
         @media (max-width: 480px) {
           .lords-mobile-banner img {
@@ -924,6 +1029,41 @@ export default function LordsMobilePage() {
 
           .lords-mobile-offer-price {
             font-size: 13px;
+          }
+
+          .lords-mobile-header {
+            gap: 5px;
+            padding: 8px;
+          }
+
+          .lords-mobile-header h1 {
+            font-size: 12px;
+          }
+
+          .lords-mobile-back-button {
+            padding: 9px 8px;
+            font-size: 11px;
+          }
+
+          .lords-mobile-vip-button,
+          .lords-mobile-vip-active {
+            padding: 9px 6px;
+            font-size: 8px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .lords-mobile-header h1 {
+            font-size: 10px;
+          }
+
+          .lords-mobile-back-button {
+            font-size: 10px;
+          }
+
+          .lords-mobile-vip-button,
+          .lords-mobile-vip-active {
+            font-size: 7px;
           }
         }
       `}</style>
