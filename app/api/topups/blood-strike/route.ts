@@ -6,6 +6,7 @@ import { BLOOD_STRIKE } from "../../../../lib/games/blood-strike";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const FAZERCARDS_BASE_URL = (
   process.env.FAZERCARDS_BASE_URL ||
@@ -13,6 +14,9 @@ const FAZERCARDS_BASE_URL = (
 ).replace(/\/+$/, "");
 
 const FAZERCARDS_API_KEY = process.env.FAZERCARDS_API_KEY || "";
+const FAZERCARDS_ORIGIN =
+  process.env.FAZERCARDS_ORIGIN?.trim() || "";
+
 const CATEGORY_ID = BLOOD_STRIKE.categoryId;
 
 const REQUEST_TIMEOUT = 30000;
@@ -339,7 +343,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. AUTENTICACIÓN
+    // 2. VALIDAR ORIGEN DE FAZERCARDS
+
+    let providerOrigin: string | undefined;
+
+    if (FAZERCARDS_ORIGIN) {
+      try {
+        providerOrigin = new URL(FAZERCARDS_ORIGIN).origin;
+      } catch {
+        return jsonError(
+          "FAZERCARDS_ORIGIN no es una URL válida.",
+          500
+        );
+      }
+    } else {
+      return jsonError(
+        "FAZERCARDS_ORIGIN no está configurada en Vercel.",
+        500
+      );
+    }
+
+    // 3. AUTENTICACIÓN
 
     const {
       user,
@@ -353,7 +377,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. BODY
+    // 4. BODY
 
     let body: any;
 
@@ -371,7 +395,7 @@ export async function POST(request: NextRequest) {
       body?.idempotencyKey
     );
 
-    // 4. VALIDAR OFERTA
+    // 5. VALIDAR OFERTA
 
     if (!offerId) {
       return jsonError("Falta offerId.");
@@ -387,7 +411,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. VALIDAR PLAYER ID
+    // 6. VALIDAR PLAYER ID
 
     if (!playerId || !isValidPlayerId(playerId)) {
       return jsonError(
@@ -395,13 +419,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 6. VALIDAR IDEMPOTENCIA
+    // 7. VALIDAR IDEMPOTENCIA
 
     if (!isValidIdempotencyKey(idempotencyKey)) {
       return jsonError("idempotencyKey inválida.");
     }
 
-    // 7. COMPROBAR CLAVE GLOBALMENTE
+    // 8. COMPROBAR CLAVE GLOBALMENTE
 
     const {
       data: existingOrder,
@@ -438,19 +462,23 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      return jsonSuccess({
-        message: "La orden ya había sido creada.",
-        order: {
-          ...existingOrder,
-          order_number: existingOrder.id,
+      return jsonSuccess(
+        {
+          message: "La orden ya había sido creada.",
+          order: {
+            ...existingOrder,
+            order_number: existingOrder.id,
+          },
+          supplierOrderId:
+            existingOrder.supplier_order_id || null,
+          status: existingOrder.status,
+          duplicate: true,
         },
-        supplierOrderId:
-          existingOrder.supplier_order_id || null,
-        duplicate: true,
-      });
+        202
+      );
     }
 
-    // 8. COMPROBAR VIP
+    // 9. COMPROBAR VIP
 
     const {
       data: profile,
@@ -481,7 +509,7 @@ export async function POST(request: NextRequest) {
       Number.isFinite(vipExpiration) &&
       vipExpiration > Date.now();
 
-    // 9. CALCULAR PRECIO
+    // 10. CALCULAR PRECIO
 
     const supplierPrice = roundMoney(
       toNumber(selectedOffer.supplierPrice)
@@ -505,7 +533,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 10. CREAR ORDEN LOCAL
+    // 11. CREAR ORDEN LOCAL
 
     const username =
       user.user_metadata?.username ||
@@ -559,7 +587,7 @@ export async function POST(request: NextRequest) {
 
     insertedOrderId = insertedOrder.id;
 
-    // 11. RESERVA UNIVERSAL
+    // 12. RESERVA UNIVERSAL
 
     reservedBalance = await reserveOrder(
       insertedOrderId
@@ -580,7 +608,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 12. ENVIAR A FAZERCARDS
+    // 13. ENVIAR A FAZERCARDS
 
     const supplierUrl =
       `${FAZERCARDS_BASE_URL}/topups/order`;
@@ -597,6 +625,7 @@ export async function POST(request: NextRequest) {
       category_id: CATEGORY_ID,
       offer_id: selectedOffer.supplierOfferId,
       order_id: insertedOrderId,
+      origin: providerOrigin,
     });
 
     supplierRequestStarted = true;
@@ -605,18 +634,22 @@ export async function POST(request: NextRequest) {
     let supplierData: SupplierResponse | null = null;
 
     try {
+      const supplierHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-API-Key": FAZERCARDS_API_KEY,
+        "Idempotency-Key": idempotencyKey,
+      };
+
+      if (providerOrigin) {
+        supplierHeaders.Origin = providerOrigin;
+      }
+
       supplierResponse = await fetchWithTimeout(
         supplierUrl,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            "X-API-Key": FAZERCARDS_API_KEY,
-            "Idempotency-Key": idempotencyKey,
-            Origin: "https://store-gamin.vercel.app",
-            Referer: "https://store-gamin.vercel.app/",
-          },
+          headers: supplierHeaders,
           body: JSON.stringify(supplierBody),
         }
       );
@@ -662,7 +695,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 13. EXTRAER RESPUESTA
+    // 14. EXTRAER RESPUESTA
 
     const supplierOrderId =
       extractSupplierOrderId(supplierData);
@@ -697,7 +730,7 @@ export async function POST(request: NextRequest) {
     const isFailed =
       failedStatuses.includes(normalizedStatus);
 
-    // 14. DETECTAR RECHAZO DEFINITIVO
+    // 15. DETECTAR RECHAZO DEFINITIVO
 
     const httpStatus = supplierResponse.status;
 
@@ -713,7 +746,7 @@ export async function POST(request: NextRequest) {
         supplierData.code === "cors_origin_not_allowed"
       );
 
-    // 15. GUARDAR RESPUESTA E ID ANTES DE CUALQUIER RPC
+    // 16. GUARDAR RESPUESTA E ID ANTES DE CUALQUIER RPC
 
     const savedSupplierData = await updateOrder(
       insertedOrderId,
@@ -724,8 +757,6 @@ export async function POST(request: NextRequest) {
     );
 
     if (!savedSupplierData) {
-      // El proveedor pudo haber aceptado el pedido.
-      // No reembolsar ni completar sin registro persistido.
       return jsonSuccess(
         {
           message:
@@ -738,7 +769,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 16. RECHAZO CONFIRMADO
+    // 17. RECHAZO CONFIRMADO
 
     if (explicitSupplierRejection) {
       const refunded = await refundOrder(
@@ -780,7 +811,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 17. RESPUESTA AMBIGUA O ERROR HTTP NO DEFINITIVO
+    // 18. RESPUESTA AMBIGUA O ERROR HTTP NO DEFINITIVO
 
     if (!supplierResponse.ok || supplierData?.ok === false) {
       await updateOrder(insertedOrderId, {
@@ -800,7 +831,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 18. COMPLETADA
+    // 19. COMPLETADA
 
     if (isCompleted) {
       if (!supplierOrderId) {
@@ -876,7 +907,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 19. FALLIDA SEGÚN ESTADO DEL PROVEEDOR
+    // 20. FALLIDA SEGÚN ESTADO DEL PROVEEDOR
 
     if (isFailed) {
       const refunded = await refundOrder(
@@ -916,7 +947,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 20. PENDIENTE
+    // 21. PENDIENTE
 
     await updateOrder(insertedOrderId, {
       status: "SUPPLIER_PENDING",
@@ -956,8 +987,6 @@ export async function POST(request: NextRequest) {
           });
         }
       } else {
-        // No sabemos si el proveedor recibió el pedido.
-        // Nunca devolver automáticamente en este caso.
         await updateOrder(insertedOrderId, {
           status: "SUPPLIER_PENDING",
           supplier_response: {
