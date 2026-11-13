@@ -355,8 +355,6 @@ async function reserveBalance(orderId: string) {
 
 // ============================================================
 // RPC UNIVERSAL: REEMBOLSAR SALDO
-// Solo se utiliza cuando sabemos que el proveedor
-// todavía no recibió la solicitud.
 // ============================================================
 
 async function refundBalance(orderId: string) {
@@ -816,8 +814,6 @@ export async function POST(request: NextRequest) {
         .single();
 
     if (insertError || !newOrder) {
-      // Si otra solicitud insertó simultáneamente
-      // la misma clave, devolver esa orden.
       if (insertError?.code === "23505") {
         const { data: duplicate, error: duplicateError } =
           await supabaseAdmin
@@ -898,6 +894,7 @@ export async function POST(request: NextRequest) {
 
     // --------------------------------------------------------
     // 12. PREPARAR PEDIDO FAZERCARDS
+    // ADAPTADO A LOS ENCABEZADOS DE MOBILE LEGENDS
     // --------------------------------------------------------
 
     const payload = {
@@ -912,10 +909,16 @@ export async function POST(request: NextRequest) {
       "X-API-Key": FAZER_API_KEY,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "Idempotency-Key": idempotencyKey,
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
     };
 
+    // Se conserva el dominio propio configurado.
+    // No se suplanta el dominio de otro servicio.
     if (providerOrigin) {
       headers.Origin = providerOrigin;
+      headers.Referer = `${providerOrigin}/`;
     }
 
     console.info(
@@ -923,7 +926,10 @@ export async function POST(request: NextRequest) {
       {
         orderId,
         offerId: offer.id,
+        supplierOfferId: offer.supplierOfferId,
         categoryId: CATEGORY_ID,
+        hasOrigin: Boolean(providerOrigin),
+        hasIdempotencyKey: Boolean(idempotencyKey),
       }
     );
 
@@ -1055,7 +1061,6 @@ export async function POST(request: NextRequest) {
       status: "PROCESSING",
     });
 
-    // Verificar que realmente quedó guardado.
     const {
       data: savedOrder,
       error: verifyIdError,
@@ -1171,9 +1176,7 @@ export async function POST(request: NextRequest) {
 
     // --------------------------------------------------------
     // 18. ESTADOS DE FALLO
-    // NO REEMBOLSAR AQUÍ.
-    // El cron consultará FazerCards y ejecutará
-    // el RPC universal de reembolso si corresponde.
+    // EL CRON UNIVERSAL VERIFICARÁ Y REEMBOLSARÁ
     // --------------------------------------------------------
 
     const failedStatuses = [
@@ -1266,25 +1269,17 @@ export async function POST(request: NextRequest) {
     if (orderId) {
       try {
         if (providerResponseReceived) {
-          // El proveedor respondió, pero ocurrió
-          // un error interno. No duplicar ni reembolsar.
           await setPending(
             orderId,
             "ERROR_AFTER_PROVIDER_RESPONSE",
             providerResponseBody
           );
         } else if (providerRequestStarted) {
-          // El resultado de la petición es desconocido.
-          // No se puede asegurar que el proveedor
-          // no haya recibido la orden.
           await setPending(
             orderId,
             "PROVIDER_REQUEST_RESULT_UNKNOWN"
           );
         } else if (balanceReserved) {
-          // La solicitud no llegó a iniciarse.
-          // Es seguro devolver la reserva mediante
-          // el RPC universal.
           await refundBalance(orderId);
         } else {
           await updateOrder(orderId, {
