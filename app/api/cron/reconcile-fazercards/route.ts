@@ -1,8 +1,10 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -10,28 +12,21 @@ const SUPABASE_URL =
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const ANKR_API_KEY =
-  process.env.ANKR_API_KEY || "";
+const FAZERCARDS_API_KEY =
+  process.env.FAZERCARDS_API_KEY || "";
 
-const CRON_SECRET =
-  process.env.CRON_SECRET || "";
+const FAZERCARDS_CRON_SECRET =
+  process.env.FAZERCARDS_CRON_SECRET || "";
 
-const BSC_RPC = ANKR_API_KEY
-  ? `https://rpc.ankr.com/bsc/${ANKR_API_KEY}`
-  : "https://bsc-dataseed.binance.org/";
+const FAZERCARDS_BASE_URL = (
+  process.env.FAZERCARDS_BASE_URL ||
+  "https://api.fzr.cards/api/v2"
+).replace(/\/+$/, "");
 
-const STORE_WALLET =
-  "0xdcdEe992E26cDBe1b024e171a3a980078BeaAC77";
+const FAZERCARDS_ORIGIN =
+  process.env.FAZERCARDS_ORIGIN || "";
 
-const USDT_CONTRACT =
-  "0x55d398326f99059fF775485246999027B3197955";
-
-const USDT_DECIMALS = 18;
-const MIN_CONFIRMATIONS = 2;
-const BLOCK_LOOKBACK = 800;
-
-const TRANSFER_TOPIC =
-  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const MAX_ORDERS_PER_RUN = 80;
 
 const supabase = createClient(
   SUPABASE_URL,
@@ -44,23 +39,38 @@ const supabase = createClient(
   }
 );
 
-type RpcLog = {
-  address?: string;
-  topics?: string[];
-  data?: string;
-  transactionHash?: string;
-  blockNumber?: string;
+type TopupOrder = {
+  id: string;
+  game: string | null;
+  status: string;
+  supplier_order_id: string | null;
 };
 
-type RpcResponse<T> = {
-  result?: T;
-  error?: {
-    message?: string;
-    code?: number;
+type FazerCardsResponse = {
+  status?: string;
+  orderId?: string;
+  id?: string;
+  fail_reason?: string;
+  message?: string;
+  data?: {
+    status?: string;
+    order?: {
+      status?: string;
+      orderId?: string;
+      fail_reason?: string;
+    };
+  };
+  order?: {
+    status?: string;
+    orderId?: string;
+    fail_reason?: string;
   };
 };
 
-function jsonError(message: string, status = 500) {
+function jsonError(
+  message: string,
+  status = 500
+) {
   return NextResponse.json(
     {
       ok: false,
@@ -71,7 +81,7 @@ function jsonError(message: string, status = 500) {
 }
 
 function isAuthorized(request: NextRequest) {
-  if (!CRON_SECRET) {
+  if (!FAZERCARDS_CRON_SECRET) {
     return false;
   }
 
@@ -86,372 +96,256 @@ function isAuthorized(request: NextRequest) {
     request.headers.get("x-cron-secret") || "";
 
   return (
-    bearerToken === CRON_SECRET ||
-    cronHeader === CRON_SECRET
+    bearerToken === FAZERCARDS_CRON_SECRET ||
+    cronHeader === FAZERCARDS_CRON_SECRET
   );
 }
 
-async function rpc<T>(
-  method: string,
-  params: unknown[]
-): Promise<T> {
-  const response = await fetch(BSC_RPC, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method,
-      params,
-    }),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Error RPC BSC: HTTP ${response.status}`
-    );
-  }
-
-  const data =
-    (await response.json()) as RpcResponse<T>;
-
-  if (data.error) {
-    throw new Error(
-      data.error.message || "Error consultando BSC."
-    );
-  }
-
-  if (data.result === undefined) {
-    throw new Error(
-      `La respuesta RPC de ${method} no contiene result.`
-    );
-  }
-
-  return data.result;
-}
-
-/*
- * Convierte un número hexadecimal a decimal sin BigInt.
- * Evita el error de TypeScript causado por los literales 10n.
- */
-function hexToDecimalString(hex: string): string {
-  const clean = hex
-    .toLowerCase()
-    .replace(/^0x/, "");
-
-  if (!clean || !/^[0-9a-f]+$/.test(clean)) {
-    return "0";
-  }
-
-  let decimal = "0";
-
-  for (const character of clean) {
-    const digit = parseInt(character, 16);
-
-    let carry = digit;
-    let output = "";
-
-    for (
-      let index = decimal.length - 1;
-      index >= 0;
-      index--
-    ) {
-      const value =
-        Number(decimal[index]) * 16 + carry;
-
-      output = String(value % 10) + output;
-      carry = Math.floor(value / 10);
-    }
-
-    while (carry > 0) {
-      output =
-        String(carry % 10) + output;
-
-      carry = Math.floor(carry / 10);
-    }
-
-    decimal = output.replace(/^0+(?=\d)/, "");
-  }
-
-  return decimal || "0";
-}
-
-/*
- * Convierte la cantidad mínima de USDT a formato decimal.
- * La cantidad original se conserva sin redondeos de Number.
- */
-function rawToUsdt(rawHex: string): string {
-  const raw = hexToDecimalString(rawHex);
-
-  const padded = raw.padStart(
-    USDT_DECIMALS + 1,
-    "0"
-  );
-
-  const splitAt =
-    padded.length - USDT_DECIMALS;
-
-  const whole = padded.slice(0, splitAt);
-  const fraction = padded
-    .slice(splitAt)
-    .replace(/0+$/, "");
-
-  return fraction
-    ? `${whole}.${fraction}`
-    : whole;
-}
-
-/*
- * Convierte una cantidad decimal a unidades mínimas
- * como texto, sin utilizar BigInt ni números flotantes.
- */
-function usdtToRaw(amount: string | number): string {
-  const value = String(amount).trim();
-
-  if (!/^\d+(\.\d+)?$/.test(value)) {
-    throw new Error("Cantidad USDT inválida.");
-  }
-
-  const [wholePart, fractionPart = ""] =
-    value.split(".");
-
-  if (fractionPart.length > USDT_DECIMALS) {
-    throw new Error(
-      "La cantidad supera los decimales permitidos."
-    );
-  }
-
-  const fraction = fractionPart.padEnd(
-    USDT_DECIMALS,
-    "0"
-  );
-
-  const raw =
-    `${wholePart}${fraction}`.replace(
-      /^0+(?=\d)/,
-      ""
-    );
-
-  return raw || "0";
-}
-
-function topicAddress(topic: string): string {
-  return `0x${topic.slice(-40)}`.toLowerCase();
-}
-
-function normalizeAddress(
-  address: string | null | undefined
+function getProviderStatus(
+  response: FazerCardsResponse
 ): string {
-  return String(address || "")
+  return String(
+    response.status ||
+    response.data?.status ||
+    response.data?.order?.status ||
+    response.order?.status ||
+    ""
+  )
     .trim()
     .toLowerCase();
 }
 
-function parseBlockNumber(
-  value: string | undefined
-): number {
-  if (!value) return 0;
-
-  const parsed = Number.parseInt(value, 16);
-
-  return Number.isSafeInteger(parsed)
-    ? parsed
-    : 0;
+function getFailureReason(
+  response: FazerCardsResponse
+): string | null {
+  return (
+    response.fail_reason ||
+    response.data?.order?.fail_reason ||
+    response.order?.fail_reason ||
+    response.message ||
+    null
+  );
 }
 
-async function findCustomerDeposit(
-  amount: string
-): Promise<string | null> {
-  /*
-   * Busca un depósito pendiente que coincida con:
-   * - red BEP20
-   * - moneda USDT
-   * - dirección de la tienda
-   * - importe exacto
-   * - fecha de expiración no vencida
-   *
-   * Si hay varios depósitos del mismo importe, no elige
-   * automáticamente uno para evitar asignarlo al cliente
-   * equivocado.
-   */
-  const now = new Date().toISOString();
+async function getFazerCardsOrder(
+  orderId: string
+): Promise<FazerCardsResponse> {
+  const headers: Record<string, string> = {
+    "X-API-Key": FAZERCARDS_API_KEY,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
 
-  const { data, error } = await supabase
-    .from("deposits")
-    .select(
-      "id, amount, network, currency, wallet_address, status, expires_at"
-    )
-    .eq("network", "BEP20")
-    .eq("currency", "USDT")
-    .in("status", ["PENDING", "PENDIENTE"])
-    .eq("amount", amount)
-    .gt("expires_at", now)
-    .limit(3);
-
-  if (error) {
-    throw new Error(
-      `No se pudieron consultar los depósitos: ${error.message}`
-    );
+  if (FAZERCARDS_ORIGIN.trim()) {
+    try {
+      headers.Origin = new URL(
+        FAZERCARDS_ORIGIN.trim()
+      ).origin;
+    } catch {
+      throw new Error(
+        "FAZERCARDS_ORIGIN no contiene un origen válido."
+      );
+    }
   }
 
-  const matches = (data || []).filter(
-    (deposit) =>
-      normalizeAddress(deposit.wallet_address) ===
-      normalizeAddress(STORE_WALLET)
-  );
-
-  if (matches.length !== 1) {
-    return null;
-  }
-
-  return matches[0].id as string;
-}
-
-async function processTransfer(
-  log: RpcLog,
-  currentBlock: number
-) {
-  const txHash = log.transactionHash;
-
-  if (!txHash) {
-    return {
-      processed: false,
-      reason: "missing_tx_hash",
-    };
-  }
-
-  const blockNumber =
-    parseBlockNumber(log.blockNumber);
-
-  const confirmations = Math.max(
-    0,
-    currentBlock - blockNumber + 1
-  );
-
-  if (
-    confirmations < MIN_CONFIRMATIONS
-  ) {
-    return {
-      processed: false,
-      reason: "insufficient_confirmations",
-    };
-  }
-
-  const topics = log.topics || [];
-
-  if (topics.length < 3 || !log.data) {
-    return {
-      processed: false,
-      reason: "invalid_transfer_log",
-    };
-  }
-
-  const fromAddress =
-    topicAddress(topics[1]);
-
-  const toAddress =
-    topicAddress(topics[2]);
-
-  if (
-    toAddress !==
-    normalizeAddress(STORE_WALLET)
-  ) {
-    return {
-      processed: false,
-      reason: "different_destination",
-    };
-  }
-
-  const amount = rawToUsdt(log.data);
-
-  if (
-    !/^\d+(\.\d+)?$/.test(amount) ||
-    Number(amount) <= 0
-  ) {
-    return {
-      processed: false,
-      reason: "invalid_amount",
-    };
-  }
-
-  /*
-   * La restricción UNIQUE(tx_hash) y la función SQL
-   * deben garantizar que una transferencia no se procese
-   * dos veces.
-   */
-  const { data: existing, error: existingError } =
-    await supabase
-      .from("store_wallet_deposits")
-      .select("id, status")
-      .eq("tx_hash", txHash)
-      .maybeSingle();
-
-  if (existingError) {
-    throw new Error(
-      `Error comprobando TX existente: ${existingError.message}`
-    );
-  }
-
-  if (existing) {
-    return {
-      processed: false,
-      reason: "already_processed",
-      txHash,
-    };
-  }
-
-  const customerDepositId =
-    await findCustomerDeposit(amount);
-
-  /*
-   * IMPORTANTE:
-   * Estos nombres de parámetros deben coincidir con la
-   * firma de public.process_store_wallet_transfer(...)
-   * que tienes instalada en Supabase.
-   */
-  const { data, error } = await supabase.rpc(
-    "process_store_wallet_transfer",
+  const response = await fetch(
+    `${FAZERCARDS_BASE_URL}/orders/${encodeURIComponent(
+      orderId
+    )}`,
     {
-      p_network: "BEP20",
-      p_token: "USDT",
-      p_wallet_address: STORE_WALLET,
-      p_amount: amount,
-      p_tx_hash: txHash,
-      p_block_number: blockNumber,
-      p_from_address: fromAddress,
-      p_to_address: toAddress,
-      p_confirmations: confirmations,
-      p_deposit_id: customerDepositId,
+      method: "GET",
+      headers,
+      cache: "no-store",
+    }
+  );
+
+  const responseText = await response.text();
+
+  let result: FazerCardsResponse;
+
+  try {
+    result = JSON.parse(
+      responseText
+    ) as FazerCardsResponse;
+  } catch {
+    throw new Error(
+      `FazerCards devolvió una respuesta no JSON. HTTP ${response.status}.`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `FazerCards HTTP ${response.status}: ${
+        result.message || responseText.slice(0, 300)
+      }`
+    );
+  }
+
+  return result;
+}
+
+async function completeOrder(
+  orderId: string
+) {
+  const { data, error } = await supabase.rpc(
+    "store_gaming_complete_order_by_id",
+    {
+      p_order_id: orderId,
     }
   );
 
   if (error) {
-    /*
-     * Si otro proceso registró la misma TX entre la
-     * comprobación y el RPC, la función SQL debe manejar
-     * la duplicación mediante UNIQUE(tx_hash).
-     */
     throw new Error(
-      `Error procesando transferencia ${txHash}: ${error.message}`
+      `Error completando pedido: ${error.message}`
     );
   }
 
+  if (!data || data.ok !== true) {
+    throw new Error(
+      `La función de finalización no confirmó el pedido: ${
+        JSON.stringify(data)
+      }`
+    );
+  }
+
+  return data;
+}
+
+async function refundOrder(
+  orderId: string
+) {
+  const { data, error } = await supabase.rpc(
+    "store_gaming_refund_order_balance",
+    {
+      p_order_id: orderId,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      `Error reembolsando pedido: ${error.message}`
+    );
+  }
+
+  if (!data || data.ok !== true) {
+    throw new Error(
+      `La función de reembolso no confirmó la operación: ${
+        JSON.stringify(data)
+      }`
+    );
+  }
+
+  return data;
+}
+
+async function processOrder(
+  order: TopupOrder
+) {
+  const supplierOrderId =
+    String(order.supplier_order_id || "").trim();
+
+  if (!supplierOrderId) {
+    return {
+      orderId: order.id,
+      game: order.game,
+      processed: false,
+      reason: "missing_supplier_order_id",
+    };
+  }
+
+  /*
+   * Consultar la orden original en FazerCards.
+   */
+  const providerResponse =
+    await getFazerCardsOrder(supplierOrderId);
+
+  const providerStatus =
+    getProviderStatus(providerResponse);
+
+  /*
+   * Pedido completado por FazerCards.
+   */
+  if (providerStatus === "completed") {
+    const result = await completeOrder(
+      order.id
+    );
+
+    return {
+      orderId: order.id,
+      supplierOrderId,
+      game: order.game,
+      providerStatus,
+      localAction: "COMPLETED",
+      processed: true,
+      result,
+    };
+  }
+
+  /*
+   * Pedido rechazado o cancelado por FazerCards.
+   */
+  if (
+    providerStatus === "failed" ||
+    providerStatus === "refund"
+  ) {
+    const failureReason =
+      getFailureReason(providerResponse);
+
+    const result = await refundOrder(
+      order.id
+    );
+
+    return {
+      orderId: order.id,
+      supplierOrderId,
+      game: order.game,
+      providerStatus,
+      failureReason,
+      localAction: "REFUNDED",
+      processed: true,
+      result,
+    };
+  }
+
+  /*
+   * Pedido creado o todavía en procesamiento.
+   */
+  if (
+    providerStatus === "created" ||
+    providerStatus === "processing"
+  ) {
+    return {
+      orderId: order.id,
+      supplierOrderId,
+      game: order.game,
+      providerStatus,
+      localAction: "KEEP_PENDING",
+      processed: false,
+      reason: "provider_still_processing",
+    };
+  }
+
+  /*
+   * No cambiar estados desconocidos.
+   */
   return {
-    processed: true,
-    txHash,
-    amount,
-    confirmations,
-    customerDepositId,
-    result: data,
+    orderId: order.id,
+    supplierOrderId,
+    game: order.game,
+    providerStatus: providerStatus || "unknown",
+    processed: false,
+    reason: "unknown_provider_status",
   };
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest
+) {
   if (!isAuthorized(request)) {
-    return jsonError("No autorizado.", 401);
+    return jsonError(
+      "No autorizado.",
+      401
+    );
   }
 
   if (
@@ -459,97 +353,95 @@ export async function GET(request: NextRequest) {
     !SUPABASE_SERVICE_ROLE_KEY
   ) {
     return jsonError(
-      "Falta configurar Supabase en las variables de entorno.",
+      "Faltan las variables de Supabase.",
+      500
+    );
+  }
+
+  if (!FAZERCARDS_API_KEY) {
+    return jsonError(
+      "Falta configurar FAZERCARDS_API_KEY.",
       500
     );
   }
 
   try {
     /*
-     * 1. Obtener el bloque actual de BSC.
+     * Buscar pedidos que todavía pueden necesitar
+     * reconciliación en la tabla central.
+     *
+     * Se incluyen pedidos con ID del proveedor,
+     * aunque su estado local sea RESERVED.
      */
-    const latestBlockHex =
-      await rpc<string>(
-        "eth_blockNumber",
-        []
-      );
+    const { data: orders, error } = await supabase
+      .from("topup_orders")
+      .select(
+        "id, game, status, supplier_order_id"
+      )
+      .in("status", [
+        "RESERVED",
+        "PROCESSING",
+        "SUPPLIER_PENDING",
+        "CONFIRMED",
+      ])
+      .not(
+        "supplier_order_id",
+        "is",
+        null
+      )
+      .limit(MAX_ORDERS_PER_RUN);
 
-    const currentBlock =
-      parseBlockNumber(latestBlockHex);
-
-    if (!currentBlock) {
+    if (error) {
       throw new Error(
-        "No se pudo determinar el bloque actual de BSC."
+        `Error consultando topup_orders: ${error.message}`
       );
     }
 
-    /*
-     * 2. Calcular el bloque inicial del escaneo.
-     */
-    const fromBlock = Math.max(
-      0,
-      currentBlock - BLOCK_LOOKBACK + 1
-    );
-
-    const fromBlockHex =
-      `0x${fromBlock.toString(16)}`;
-
-    /*
-     * 3. Preparar el topic de destino.
-     */
-    const destinationTopic =
-      `0x${normalizeAddress(STORE_WALLET).slice(2).padStart(64, "0")}`;
-
-    /*
-     * 4. Obtener transferencias USDT hacia la tienda.
-     */
-    const logs = await rpc<RpcLog[]>(
-      "eth_getLogs",
-      [
-        {
-          fromBlock: fromBlockHex,
-          toBlock: latestBlockHex,
-          address: USDT_CONTRACT,
-          topics: [
-            TRANSFER_TOPIC,
-            null,
-            destinationTopic,
-          ],
-        },
-      ]
-    );
+    const pendingOrders =
+      (orders || []) as TopupOrder[];
 
     const results: Array<
       Record<string, unknown>
     > = [];
 
-    let processed = 0;
-    let skipped = 0;
+    let completed = 0;
+    let refunded = 0;
+    let pending = 0;
+    let unknown = 0;
     let failed = 0;
 
     /*
-     * 5. Procesar las transferencias una por una.
+     * Consultar las órdenes una por una
+     * para respetar el límite de FazerCards.
      */
-    for (const log of logs) {
+    for (const order of pendingOrders) {
       try {
-        const result = await processTransfer(
-          log,
-          currentBlock
-        );
+        const result = await processOrder(order);
 
         results.push(result);
 
-        if (result.processed) {
-          processed++;
+        if (result.localAction === "COMPLETED") {
+          completed++;
+        } else if (
+          result.localAction === "REFUNDED"
+        ) {
+          refunded++;
+        } else if (
+          result.localAction === "KEEP_PENDING"
+        ) {
+          pending++;
         } else {
-          skipped++;
+          unknown++;
         }
       } catch (error) {
         failed++;
 
         results.push({
+          orderId: order.id,
+          game: order.game,
+          supplierOrderId:
+            order.supplier_order_id,
           processed: false,
-          txHash: log.transactionHash || null,
           error:
             error instanceof Error
               ? error.message
@@ -560,27 +452,27 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: failed === 0,
-      network: "BEP20",
-      token: "USDT",
-      wallet: STORE_WALLET,
-      currentBlock,
-      fromBlock,
-      scanned: logs.length,
-      processed,
-      skipped,
+      reconciler: "FAZERCARDS",
+      table: "topup_orders",
+      scanned: pendingOrders.length,
+      completed,
+      refunded,
+      pending,
+      unknown,
       failed,
+      limit: MAX_ORDERS_PER_RUN,
       results,
     });
   } catch (error) {
     console.error(
-      "[check-store-wallet]",
+      "[RECONCILE-FAZERCARDS]",
       error
     );
 
     return jsonError(
       error instanceof Error
         ? error.message
-        : "Error revisando la wallet."
+        : "Error ejecutando el reconciliador."
     );
   }
-      }
+}
