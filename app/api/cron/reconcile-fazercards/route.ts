@@ -63,6 +63,8 @@ type TopupOrder = {
   status: string;
   supplier_order_id: string | null;
   supplier_response: Record<string, unknown> | null;
+  updated_at: string;
+  balance_reserved_at: string | null;
 };
 
 type ProviderResponse = Record<string, any>;
@@ -405,14 +407,21 @@ async function processOrder(
     };
   }
 
+  let providerResult: {
+    httpStatus: number;
+    response: ProviderResponse;
+  } | null = null;
+
+  let providerStatus = "";
+
   try {
-    const providerResult =
+    providerResult =
       await getFazerCardsOrder(supplierOrderId);
 
     const providerResponse =
       providerResult.response;
 
-    const providerStatus =
+    providerStatus =
       getProviderStatus(providerResponse);
 
     const failureReason =
@@ -510,22 +519,32 @@ async function processOrder(
     const errorMessage =
       error instanceof Error
         ? error.message
-        : "Error desconocido consultando FazerCards.";
+        : "Error desconocido.";
 
-    try {
-      await saveReconciliation(order, {
-        provider_status: "query_error",
-        reconcile_error: errorMessage,
-      });
-    } catch (saveError) {
-      console.error(
-        "[RECONCILE-FAZERCARDS] Error guardando consulta:",
-        order.id,
-        saveError
-      );
+    // No sobrescribir la respuesta del proveedor
+    // cuando el proveedor ya respondió correctamente.
+    // Así distinguimos errores de consulta y errores RPC.
+
+    if (!providerResult) {
+      try {
+        await saveReconciliation(order, {
+          provider_status: "query_error",
+          reconcile_error: errorMessage,
+        });
+      } catch (saveError) {
+        console.error(
+          "[RECONCILE-FAZERCARDS] Error guardando consulta:",
+          order.id,
+          saveError
+        );
+      }
     }
 
-    throw new Error(errorMessage);
+    throw new Error(
+      providerResult
+        ? `Error procesando respuesta del proveedor (${providerStatus || "unknown"}): ${errorMessage}`
+        : `Error consultando proveedor: ${errorMessage}`
+    );
   }
 }
 
@@ -562,9 +581,15 @@ export async function GET(request: NextRequest) {
 
     const { data: orders, error } = await supabase
       .from("topup_orders")
-      .select(
-        "id, game, status, supplier_order_id, supplier_response"
-      )
+      .select(`
+        id,
+        game,
+        status,
+        supplier_order_id,
+        supplier_response,
+        updated_at,
+        balance_reserved_at
+      `)
       .in("status", [
         "PENDING",
         "RESERVED",
@@ -590,6 +615,48 @@ export async function GET(request: NextRequest) {
 
     const pendingOrders =
       (orders || []) as TopupOrder[];
+
+    // --------------------------------------------------------
+    // DIAGNÓSTICO DE SOLO LECTURA
+    // --------------------------------------------------------
+
+    if (
+      request.nextUrl.searchParams.get("diagnostic") === "1"
+    ) {
+      console.log(
+        "[RECONCILE-FAZERCARDS] READ_ONLY_DIAGNOSTIC",
+        {
+          scanned: pendingOrders.length,
+          selectedOrders: pendingOrders.map((order) => ({
+            id: order.id,
+            game: order.game,
+            status: order.status,
+            supplier_order_id: order.supplier_order_id,
+            updated_at: order.updated_at,
+            balance_reserved_at: order.balance_reserved_at,
+          })),
+        }
+      );
+
+      return NextResponse.json({
+        ok: true,
+        mode: "READ_ONLY_DIAGNOSTIC",
+        reconciler: "FAZERCARDS",
+        table: "topup_orders",
+        scope: "ALL_GAMES",
+        scanned: pendingOrders.length,
+        selectedOrders: pendingOrders.map((order) => ({
+          id: order.id,
+          game: order.game,
+          status: order.status,
+          supplier_order_id: order.supplier_order_id,
+          updated_at: order.updated_at,
+          balance_reserved_at: order.balance_reserved_at,
+        })),
+        message:
+          "Diagnóstico completado. No se consultó FazerCards ni se ejecutaron RPC.",
+      });
+    }
 
     // --------------------------------------------------------
     // PROCESAMIENTO CONCURRENTE
@@ -673,6 +740,9 @@ export async function GET(request: NextRequest) {
 
     console.log("[RECONCILE-FAZERCARDS]", {
       scanned: pendingOrders.length,
+      selectedIds: pendingOrders.map(
+        (order) => order.id
+      ),
       completed,
       refunded,
       pending,
