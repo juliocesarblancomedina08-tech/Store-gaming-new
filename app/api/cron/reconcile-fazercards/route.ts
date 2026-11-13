@@ -72,6 +72,7 @@ type ProcessResult = {
   game: string | null;
   supplierOrderId?: string;
   providerStatus?: string;
+  failureReason?: string | null;
   localAction?: string;
   processed: boolean;
   reason?: string;
@@ -130,13 +131,13 @@ function getProviderStatus(
 ): string {
   return normalizeStatus(
     response.status ||
-    response.order_status ||
-    response.state ||
-    response.order?.status ||
-    response.data?.status ||
-    response.data?.order?.status ||
-    response.result?.status ||
-    ""
+      response.order_status ||
+      response.state ||
+      response.order?.status ||
+      response.data?.status ||
+      response.data?.order?.status ||
+      response.result?.status ||
+      ""
   );
 }
 
@@ -183,8 +184,7 @@ function isFailedStatus(status: string) {
 }
 
 function getLocalPendingStatus(
-  providerStatus: string,
-  currentStatus: string
+  providerStatus: string
 ): string | null {
   if (
     providerStatus === "processing" ||
@@ -209,7 +209,6 @@ function getLocalPendingStatus(
     return "SUPPLIER_PENDING";
   }
 
-  // No modificar estados desconocidos.
   return null;
 }
 
@@ -419,10 +418,6 @@ async function processOrder(
     const failureReason =
       getFailureReason(providerResponse);
 
-    // --------------------------------------------------------
-    // REGISTRAR RESPUESTA DEL PROVEEDOR
-    // --------------------------------------------------------
-
     const reconciliationData = {
       http_status: providerResult.httpStatus,
       provider_status: providerStatus || "unknown",
@@ -430,13 +425,14 @@ async function processOrder(
       failure_reason: failureReason,
     };
 
+    // Guardar respuesta del proveedor.
     await saveReconciliation(
       order,
       reconciliationData
     );
 
     // --------------------------------------------------------
-    // COMPLETADA
+    // PEDIDO COMPLETADO
     // --------------------------------------------------------
 
     if (isSuccessfulStatus(providerStatus)) {
@@ -454,7 +450,7 @@ async function processOrder(
     }
 
     // --------------------------------------------------------
-    // FALLIDA / REEMBOLSO
+    // PEDIDO FALLIDO
     // --------------------------------------------------------
 
     if (isFailedStatus(providerStatus)) {
@@ -473,13 +469,11 @@ async function processOrder(
     }
 
     // --------------------------------------------------------
-    // SIGUE EN PROCESO
+    // PEDIDO PENDIENTE O EN PROCESO
     // --------------------------------------------------------
 
-    const pendingStatus = getLocalPendingStatus(
-      providerStatus,
-      order.status
-    );
+    const pendingStatus =
+      getLocalPendingStatus(providerStatus);
 
     if (pendingStatus) {
       await saveReconciliation(
@@ -518,8 +512,6 @@ async function processOrder(
         ? error.message
         : "Error desconocido consultando FazerCards.";
 
-    // Registrar el error sin cambiar el estado
-    // ni devolver dinero por una respuesta ambigua.
     try {
       await saveReconciliation(order, {
         provider_status: "query_error",
@@ -565,7 +557,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // --------------------------------------------------------
-    // CONSULTAR TABLA CENTRAL
+    // CONSULTAR TABLA CENTRAL DE RECARGAS
     // --------------------------------------------------------
 
     const { data: orders, error } = await supabase
@@ -626,6 +618,7 @@ export async function GET(request: NextRequest) {
 
           try {
             const result = await processOrder(order);
+
             results[currentIndex] = result;
           } catch (error) {
             results[currentIndex] = {
