@@ -1,4 +1,3 @@
-
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
@@ -11,10 +10,93 @@ import {
 
 const VIP_MARKUP = 0.08;
 
+type OrderStatus =
+  | "COMPLETED"
+  | "SUPPLIER_PENDING"
+  | "REFUND_PENDING"
+  | "REFUNDED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "RESERVED"
+  | "PENDING";
+
+function normalizeStatus(value: unknown): OrderStatus {
+  const status =
+    typeof value === "string"
+      ? value.toUpperCase().trim()
+      : "";
+
+  const allowed: OrderStatus[] = [
+    "COMPLETED",
+    "SUPPLIER_PENDING",
+    "REFUND_PENDING",
+    "REFUNDED",
+    "REJECTED",
+    "CANCELLED",
+    "RESERVED",
+    "PENDING",
+  ];
+
+  return allowed.includes(status as OrderStatus)
+    ? (status as OrderStatus)
+    : "PENDING";
+}
+
+function getStatusTitle(status: OrderStatus) {
+  switch (status) {
+    case "COMPLETED":
+      return "Orden completada";
+
+    case "SUPPLIER_PENDING":
+      return "Orden pendiente";
+
+    case "REFUND_PENDING":
+      return "Reembolso pendiente";
+
+    case "REFUNDED":
+      return "Saldo devuelto";
+
+    case "REJECTED":
+      return "Orden rechazada";
+
+    case "CANCELLED":
+      return "Orden cancelada";
+
+    default:
+      return "Orden recibida";
+  }
+}
+
+function getStatusMessage(status: OrderStatus) {
+  switch (status) {
+    case "COMPLETED":
+      return "La orden fue completada correctamente. Puedes revisar los detalles desde tu historial de pedidos.";
+
+    case "SUPPLIER_PENDING":
+      return "La solicitud fue recibida, pero todavía está pendiente de confirmación del proveedor. No repitas la solicitud.";
+
+    case "REFUND_PENDING":
+      return "El pedido necesita revisión para completar el reembolso. Puedes consultar su estado desde el historial.";
+
+    case "REFUNDED":
+      return "El pedido fue reembolsado. Puedes consultar los detalles en tu historial.";
+
+    case "REJECTED":
+      return "La orden fue rechazada. Consulta el historial para revisar su estado.";
+
+    case "CANCELLED":
+      return "La orden fue cancelada. Consulta el historial para revisar los detalles.";
+
+    default:
+      return "La solicitud fue recibida. Consulta el historial para comprobar su estado.";
+  }
+}
+
 export default function BloodStrikePage() {
   const router = useRouter();
 
   const [showOffers, setShowOffers] = useState(false);
+
   const [selectedOffer, setSelectedOffer] =
     useState<BloodStrikeOffer | null>(null);
 
@@ -26,7 +108,12 @@ export default function BloodStrikePage() {
 
   const [orderNumber, setOrderNumber] = useState("");
   const [supplierOrderId, setSupplierOrderId] = useState("");
-  const [orderStatus, setOrderStatus] = useState("");
+  const [orderStatus, setOrderStatus] =
+    useState<OrderStatus>("PENDING");
+
+  const [orderMessage, setOrderMessage] = useState("");
+
+  const [idempotencyKey, setIdempotencyKey] = useState("");
 
   const [vipActive, setVipActive] = useState(false);
 
@@ -56,7 +143,11 @@ export default function BloodStrikePage() {
             .maybeSingle();
 
         if (profileError) {
-          console.error("Error comprobando VIP:", profileError);
+          console.error(
+            "Error comprobando VIP:",
+            profileError
+          );
+
           if (!cancelled) setVipActive(false);
           return;
         }
@@ -72,7 +163,11 @@ export default function BloodStrikePage() {
           );
         }
       } catch (error) {
-        console.error("Error cargando membresía VIP:", error);
+        console.error(
+          "Error cargando membresía VIP:",
+          error
+        );
+
         if (!cancelled) setVipActive(false);
       }
     }
@@ -97,23 +192,32 @@ export default function BloodStrikePage() {
       );
     }
 
-    return Number(offer.price);
+    return Number(
+      Number(offer.price).toFixed(4)
+    );
   }
 
   function formatOfferPrice(offer: BloodStrikeOffer) {
-    return `$${getOfferPrice(offer).toFixed(
-      vipActive ? 4 : 2
-    )}`;
+    return `$${getOfferPrice(offer).toFixed(4)}`;
   }
+
+  /*
+   * SELECCIONAR OFERTA
+   */
 
   function selectOffer(offer: BloodStrikeOffer) {
     setSelectedOffer(offer);
+
     setPlayerId("");
     setError("");
+
     setOrderCreated(false);
     setOrderNumber("");
     setSupplierOrderId("");
-    setOrderStatus("");
+    setOrderStatus("PENDING");
+    setOrderMessage("");
+
+    setIdempotencyKey("");
 
     setTimeout(() => {
       document
@@ -125,7 +229,13 @@ export default function BloodStrikePage() {
     }, 100);
   }
 
+  /*
+   * CREAR ORDEN
+   */
+
   async function createOrder() {
+    if (processing) return;
+
     if (!selectedOffer) {
       setError("Seleccione una oferta.");
       return;
@@ -137,6 +247,7 @@ export default function BloodStrikePage() {
       setError(
         "Introduzca un ID de jugador válido. Solo se permiten letras, números, guion y guion bajo."
       );
+
       return;
     }
 
@@ -152,31 +263,54 @@ export default function BloodStrikePage() {
         setError(
           "Su sesión ha expirado. Inicie sesión nuevamente."
         );
+
         return;
       }
 
-      const idempotencyKey = crypto.randomUUID();
+      /*
+       * REUTILIZAR CLAVE DE IDEMPOTENCIA
+       *
+       * Si la solicitud falla por un problema de conexión,
+       * el siguiente intento utilizará la misma clave.
+       */
+
+      const currentIdempotencyKey =
+        idempotencyKey || crypto.randomUUID();
+
+      if (!idempotencyKey) {
+        setIdempotencyKey(currentIdempotencyKey);
+      }
+
+      /*
+       * ENVIAR SOLICITUD
+       *
+       * El servidor calcula el precio.
+       * No confiamos en precios enviados por el navegador.
+       */
 
       const response = await fetch(
         "/api/topups/blood-strike",
         {
           method: "POST",
+
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
+
           body: JSON.stringify({
             offerId: selectedOffer.id,
             playerId: cleanPlayerId,
-            idempotencyKey,
-            retailPrice: getOfferPrice(selectedOffer),
+            idempotencyKey: currentIdempotencyKey,
           }),
         }
       );
 
-      const data = await response.json().catch(() => null);
+      const data = await response
+        .json()
+        .catch(() => null);
 
-      if (!response.ok) {
+      if (!response.ok || data?.ok === false) {
         throw new Error(
           data?.error ||
             data?.message ||
@@ -184,23 +318,44 @@ export default function BloodStrikePage() {
         );
       }
 
-      setOrderNumber(
-        data?.orderNumber ||
-          data?.order?.orderNumber ||
-          data?.order?.id ||
-          ""
+      /*
+       * LEER RESPUESTA
+       */
+
+      const order = data?.order || {};
+
+      const receivedStatus = normalizeStatus(
+        order.status || data?.status
       );
+
+      const receivedOrderNumber =
+        data?.orderNumber ||
+        order.orderNumber ||
+        order.order_number ||
+        order.id ||
+        data?.orderId ||
+        "";
+
+      const receivedSupplierOrderId =
+        data?.supplierOrderId ||
+        order.supplierOrderId ||
+        order.supplier_order_id ||
+        "";
+
+      /*
+       * MOSTRAR RESULTADO REAL
+       */
+
+      setOrderNumber(String(receivedOrderNumber));
 
       setSupplierOrderId(
-        data?.supplierOrderId ||
-          data?.order?.supplierOrderId ||
-          ""
+        String(receivedSupplierOrderId)
       );
 
-      setOrderStatus(
-        data?.status ||
-          data?.order?.status ||
-          "PENDING"
+      setOrderStatus(receivedStatus);
+
+      setOrderMessage(
+        getStatusMessage(receivedStatus)
       );
 
       setOrderCreated(true);
@@ -214,6 +369,11 @@ export default function BloodStrikePage() {
           });
       }, 100);
     } catch (err) {
+      console.error(
+        "BLOOD STRIKE FRONTEND ERROR:",
+        err
+      );
+
       setError(
         err instanceof Error
           ? err.message
@@ -224,12 +384,20 @@ export default function BloodStrikePage() {
     }
   }
 
+  /*
+   * FORMULARIO
+   */
+
   function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
     void createOrder();
   }
+
+  /*
+   * NAVEGACIÓN
+   */
 
   function goToOrders() {
     router.push("/orders");
@@ -242,6 +410,10 @@ export default function BloodStrikePage() {
   function goToVip() {
     router.push("/vip");
   }
+
+  /*
+   * INTERFAZ
+   */
 
   return (
     <main className="blood-strike-page">
@@ -395,10 +567,21 @@ export default function BloodStrikePage() {
                     autoComplete="off"
                     placeholder="Ej: 123456789"
                     value={playerId}
-                    onChange={(event) =>
-                      setPlayerId(event.target.value)
-                    }
+                    onChange={(event) => {
+                      const newValue = event.target.value;
+
+                      setPlayerId(newValue);
+
+                      // Si cambia el jugador, se necesita
+                      // una nueva clave para la nueva orden.
+                      if (newValue.trim() !== playerId.trim()) {
+                        setIdempotencyKey("");
+                      }
+
+                      setError("");
+                    }}
                     maxLength={32}
+                    disabled={processing}
                   />
                 </div>
 
@@ -422,7 +605,7 @@ export default function BloodStrikePage() {
                   disabled={processing}
                 >
                   {processing
-                    ? "CREANDO ORDEN..."
+                    ? "PROCESANDO..."
                     : "CREAR ORDEN"}
                 </button>
               </form>
@@ -435,18 +618,27 @@ export default function BloodStrikePage() {
             id="success-section"
             className="blood-strike-success-section"
           >
-            <div className="blood-strike-success-icon">
-              ✓
+            <div
+              className={`blood-strike-success-icon ${
+                orderStatus !== "COMPLETED"
+                  ? "pending"
+                  : ""
+              }`}
+            >
+              {orderStatus === "COMPLETED"
+                ? "✓"
+                : orderStatus === "REJECTED" ||
+                    orderStatus === "CANCELLED"
+                  ? "!"
+                  : "…"}
             </div>
 
             <div className="blood-strike-success-title">
-              Orden creada
+              {getStatusTitle(orderStatus)}
             </div>
 
             <div className="blood-strike-success-text">
-              Tu orden fue creada correctamente.
-              Puedes revisar su estado desde el historial
-              de pedidos.
+              {orderMessage}
             </div>
 
             {orderNumber && (
@@ -461,11 +653,9 @@ export default function BloodStrikePage() {
               </div>
             )}
 
-            {orderStatus && (
-              <div className="blood-strike-order-number">
-                Estado: {orderStatus}
-              </div>
-            )}
+            <div className="blood-strike-order-number">
+              Estado: {orderStatus}
+            </div>
 
             <button
               type="button"
@@ -947,6 +1137,10 @@ export default function BloodStrikePage() {
           color: #fff;
           font-size: 28px;
           font-weight: 1000;
+        }
+
+        .blood-strike-success-icon.pending {
+          background: #9a681b;
         }
 
         .blood-strike-success-title {
