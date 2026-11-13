@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -152,35 +153,14 @@ async function setPending(
     saved_at: new Date().toISOString(),
   };
 
-  if (response !== undefined) supplierResponse.response = response;
+  if (response !== undefined) {
+    supplierResponse.response = response;
+  }
 
   await updateOrder(orderId, {
     status: "SUPPLIER_PENDING",
     supplier_response: supplierResponse,
   });
-}
-
-async function refundAndVerify(orderId: string) {
-  const { error } = await supabaseAdmin.rpc("refund_topup_balance", {
-    p_order_id: orderId,
-  });
-
-  if (error) throw new Error(`Error de reembolso: ${error.message}`);
-
-  const { data, error: verifyError } = await supabaseAdmin
-    .from("topup_orders")
-    .select("status, refunded_at")
-    .eq("id", orderId)
-    .maybeSingle();
-
-  if (
-    verifyError ||
-    !data ||
-    String(data.status).toUpperCase() !== "REFUNDED" ||
-    !data.refunded_at
-  ) {
-    throw new Error("No se pudo verificar el reembolso.");
-  }
 }
 
 function responseForExistingOrder(
@@ -246,7 +226,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validar configuración antes de reservar saldo.
     let providerOrigin: string | undefined;
 
     if (FAZERCARDS_ORIGIN) {
@@ -325,10 +304,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ============================================================
-    // VERIFICAR MEMBRESÍA VIP DIRECTAMENTE EN SUPABASE
-    // ============================================================
-
+    // Verificar membresía VIP.
     const { data: profile, error: profileError } =
       await supabaseAdmin
         .from("profiles")
@@ -356,10 +332,7 @@ export async function POST(request: NextRequest) {
       Number.isFinite(vipExpiresAt) &&
       vipExpiresAt > Date.now();
 
-    // ============================================================
-    // CALCULAR PRECIO
-    // ============================================================
-
+    // Calcular precio.
     const supplierPrice = Number(offer.supplierPrice);
 
     const retailPrice = vipActive
@@ -389,10 +362,7 @@ export async function POST(request: NextRequest) {
       retailPrice,
     });
 
-    // ============================================================
-    // CREAR ORDEN Y RESERVAR SALDO
-    // ============================================================
-
+    // Crear pedido en topup_orders y reservar saldo.
     const { data: reservation, error: reservationError } =
       await supabaseAdmin.rpc("create_topup_order_and_reserve_balance", {
         p_user_id: user.id,
@@ -491,7 +461,9 @@ export async function POST(request: NextRequest) {
       Accept: "application/json",
     };
 
-    if (providerOrigin) headers.Origin = providerOrigin;
+    if (providerOrigin) {
+      headers.Origin = providerOrigin;
+    }
 
     console.info("Enviando nueva orden de Free Fire a FazerCards", {
       orderId,
@@ -550,7 +522,9 @@ export async function POST(request: NextRequest) {
           },
         };
 
-        if (supplierId) values.supplier_order_id = supplierId;
+        if (supplierId) {
+          values.supplier_order_id = supplierId;
+        }
 
         await updateOrder(orderId, values);
 
@@ -604,16 +578,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Guardar ID de FazerCards en la tabla central.
     await updateOrder(orderId, {
       supplier_order_id: supplierId,
       supplier_response: result,
     });
 
-    const { data: savedOrder, error: verifyIdError } = await supabaseAdmin
-      .from("topup_orders")
-      .select("supplier_order_id")
-      .eq("id", orderId)
-      .maybeSingle();
+    const { data: savedOrder, error: verifyIdError } =
+      await supabaseAdmin
+        .from("topup_orders")
+        .select("supplier_order_id")
+        .eq("id", orderId)
+        .maybeSingle();
 
     if (
       verifyIdError ||
@@ -650,9 +626,10 @@ export async function POST(request: NextRequest) {
     ];
 
     if (completedStatuses.includes(supplierStatus)) {
+      // FINALIZACIÓN UNIVERSAL POR ID INTERNO DE topup_orders.
       const { error: completeError } = await supabaseAdmin.rpc(
-        "complete_topup_order",
-        { p_supplier_order_id: supplierId }
+        "store_gaming_complete_order_by_id",
+        { p_order_id: orderId }
       );
 
       if (completeError) {
@@ -677,11 +654,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data: finalOrder, error: finalError } = await supabaseAdmin
-        .from("topup_orders")
-        .select("status, refunded_at")
-        .eq("id", orderId)
-        .maybeSingle();
+      const { data: finalOrder, error: finalError } =
+        await supabaseAdmin
+          .from("topup_orders")
+          .select("status, refunded_at")
+          .eq("id", orderId)
+          .maybeSingle();
 
       if (
         finalError ||
