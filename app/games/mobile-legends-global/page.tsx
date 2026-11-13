@@ -1,9 +1,16 @@
 
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+
 import { MOBILE_LEGENDS_GLOBAL } from "../../../lib/mobile-legends-global";
 
 const supabase = createClient(
@@ -32,17 +39,60 @@ function getOfferPrice(offer: Offer, isVip: boolean) {
     return offer.price;
   }
 
-  return Number((offer.supplierPrice + VIP_MARKUP).toFixed(4));
+  return Number(
+    (offer.supplierPrice + VIP_MARKUP).toFixed(4)
+  );
 }
 
 function formatOfferPrice(offer: Offer, isVip: boolean) {
-  return `$${getOfferPrice(offer, isVip).toFixed(isVip ? 4 : 2)}`;
+  return `$${getOfferPrice(offer, isVip).toFixed(
+    isVip ? 4 : 2
+  )}`;
+}
+
+function getOrderStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    COMPLETED: "COMPLETADA",
+    SUPPLIER_PENDING: "PENDIENTE DEL PROVEEDOR",
+    RESERVED: "SALDO RESERVADO",
+    PENDING: "PENDIENTE",
+    FAILED: "FALLIDA",
+    REFUNDED: "REEMBOLSADA",
+    CANCELLED: "CANCELADA",
+  };
+
+  return labels[status] || status;
 }
 
 export default function MobileLegendsGlobalPage() {
   const router = useRouter();
 
+  const idempotencyRef = useRef<{
+    fingerprint: string;
+    key: string;
+  } | null>(null);
+
   const [vipActive, setVipActive] = useState(false);
+
+  const [showOffers, setShowOffers] = useState(true);
+  const [selectedOffer, setSelectedOffer] =
+    useState<Offer | null>(null);
+
+  const [playerId, setPlayerId] = useState("");
+  const [serverId, setServerId] = useState("");
+
+  const [error, setError] = useState("");
+
+  const [showConfirmation, setShowConfirmation] =
+    useState(false);
+
+  const [orderCreated, setOrderCreated] = useState(false);
+
+  const [orderNumber, setOrderNumber] = useState("");
+  const [supplierOrderId, setSupplierOrderId] = useState("");
+  const [orderStatus, setOrderStatus] = useState("");
+
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,28 +152,13 @@ export default function MobileLegendsGlobalPage() {
     };
   }, []);
 
-  const [showOffers, setShowOffers] = useState(true);
-  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
-
-  const [playerId, setPlayerId] = useState("");
-  const [serverId, setServerId] = useState("");
-
-  const [error, setError] = useState("");
-
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [orderCreated, setOrderCreated] = useState(false);
-
-  const [orderNumber, setOrderNumber] = useState("");
-  const [supplierOrderId, setSupplierOrderId] = useState("");
-  const [orderStatus, setOrderStatus] = useState("");
-
-  const [processing, setProcessing] = useState(false);
-
   function selectOffer(offer: Offer) {
     setSelectedOffer(offer);
     setError("");
     setShowConfirmation(false);
     setOrderCreated(false);
+
+    idempotencyRef.current = null;
 
     setTimeout(() => {
       document
@@ -193,23 +228,47 @@ export default function MobileLegendsGlobalPage() {
     setProcessing(true);
     setError("");
 
+    const cleanPlayerId = playerId.trim();
+    const cleanServerId = serverId.trim();
+
+    const fingerprint = [
+      selectedOffer.id,
+      cleanPlayerId,
+      cleanServerId,
+    ].join(":");
+
     try {
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (!session?.access_token) {
+      if (sessionError || !session?.access_token) {
         router.push("/login");
         return;
       }
 
-      const idempotencyKey =
-        typeof crypto !== "undefined" &&
-        "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2)}`;
+      // Reutilizar la misma clave si se reintenta
+      // exactamente la misma solicitud.
+      if (
+        !idempotencyRef.current ||
+        idempotencyRef.current.fingerprint !== fingerprint
+      ) {
+        const key =
+          typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()
+                .toString(36)
+                .slice(2)}`;
+
+        idempotencyRef.current = {
+          fingerprint,
+          key,
+        };
+      }
+
+      const idempotencyKey = idempotencyRef.current.key;
 
       const response = await fetch(
         "/api/topups/mobile-legends-global",
@@ -221,36 +280,50 @@ export default function MobileLegendsGlobalPage() {
           },
           body: JSON.stringify({
             offerId: selectedOffer.id,
-            playerId,
-            serverId,
+            playerId: cleanPlayerId,
+            serverId: cleanServerId,
             idempotencyKey,
           }),
         }
       );
 
-      const data = await response
-        .json()
-        .catch(() => null);
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(
           data?.error ||
             data?.message ||
-            "No se pudo crear la orden."
+            "No se pudo procesar la solicitud. Comprueba el estado de la orden antes de intentarlo nuevamente."
         );
       }
 
-      setOrderNumber(data?.orderNumber || "");
-      setSupplierOrderId(data?.supplierOrderId || "");
-      setOrderStatus(
-        data?.status || "SUPPLIER_PENDING"
+      const receivedStatus =
+        typeof data?.status === "string"
+          ? data.status
+          : "SUPPLIER_PENDING";
+
+      setOrderNumber(
+        data?.orderNumber
+          ? String(data.orderNumber)
+          : ""
       );
+
+      setSupplierOrderId(
+        data?.supplierOrderId
+          ? String(data.supplierOrderId)
+          : ""
+      );
+
+      setOrderStatus(receivedStatus);
+
+      // La respuesta llegó correctamente.
+      idempotencyRef.current = null;
 
       setOrderCreated(true);
       setShowConfirmation(false);
     } catch (err) {
       console.error(
-        "ERROR CREANDO ORDEN LEGENDS MOBILE GLOBAL:",
+        "ERROR CREANDO ORDEN MOBILE LEGENDS GLOBAL:",
         err
       );
 
@@ -259,6 +332,9 @@ export default function MobileLegendsGlobalPage() {
           ? err.message
           : "Ocurrió un error creando la orden."
       );
+
+      // No borrar la clave: el servidor podría
+      // haber recibido la solicitud.
     } finally {
       setProcessing(false);
     }
@@ -486,10 +562,7 @@ export default function MobileLegendsGlobalPage() {
                     value={playerId}
                     onChange={(event) =>
                       setPlayerId(
-                        event.target.value.replace(
-                          /\D/g,
-                          ""
-                        )
+                        event.target.value.replace(/\D/g, "")
                       )
                     }
                     placeholder="Ej: 123456789"
@@ -507,10 +580,7 @@ export default function MobileLegendsGlobalPage() {
                     value={serverId}
                     onChange={(event) =>
                       setServerId(
-                        event.target.value.replace(
-                          /\D/g,
-                          ""
-                        )
+                        event.target.value.replace(/\D/g, "")
                       )
                     }
                     placeholder="Ej: 1234"
@@ -582,7 +652,10 @@ export default function MobileLegendsGlobalPage() {
                     <span>Total</span>
 
                     <strong>
-                      {formatOfferPrice(selectedOffer, vipActive)}{" "}
+                      {formatOfferPrice(
+                        selectedOffer,
+                        vipActive
+                      )}{" "}
                       USDT
                     </strong>
                   </div>
@@ -626,11 +699,24 @@ export default function MobileLegendsGlobalPage() {
                 ✓
               </div>
 
-              <h2>Orden creada</h2>
+              <h2>
+                {orderStatus === "COMPLETED"
+                  ? "Recarga completada"
+                  : orderStatus === "REFUNDED"
+                    ? "Orden reembolsada"
+                    : orderStatus === "FAILED"
+                      ? "Orden fallida"
+                      : "Solicitud recibida"}
+              </h2>
 
               <p>
-                Tu solicitud de recarga fue enviada
-                correctamente.
+                {orderStatus === "COMPLETED"
+                  ? "Tu recarga fue completada correctamente."
+                  : orderStatus === "REFUNDED"
+                    ? "La orden fue reembolsada. Consulta el movimiento de tu saldo."
+                    : orderStatus === "FAILED"
+                      ? "La orden no pudo completarse. Consulta el estado de tu saldo."
+                      : "Tu solicitud fue recibida y está pendiente de confirmación del proveedor."}
               </p>
 
               <div className="mobile-legends-success-card">
@@ -653,7 +739,9 @@ export default function MobileLegendsGlobalPage() {
 
                 <div>
                   <span>Estado</span>
-                  <strong>{orderStatus}</strong>
+                  <strong>
+                    {getOrderStatusLabel(orderStatus)}
+                  </strong>
                 </div>
 
                 <div>
@@ -686,6 +774,8 @@ export default function MobileLegendsGlobalPage() {
                     setOrderStatus("");
                     setShowConfirmation(false);
                     setError("");
+                    setProcessing(false);
+                    idempotencyRef.current = null;
                   }}
                   className="mobile-legends-new-button"
                 >
