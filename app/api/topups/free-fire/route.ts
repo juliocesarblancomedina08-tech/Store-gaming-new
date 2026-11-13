@@ -20,15 +20,12 @@ const FAZER_API_BASE = (
   "https://api.fzr.cards/api/v2"
 ).replace(/\/+$/, "");
 
-const FAZER_API_KEY = process.env.FAZERCARDS_API_KEY;
-const FAZERCARDS_ORIGIN =
-  process.env.FAZERCARDS_ORIGIN?.trim();
-
 const CATEGORY_ID = "free_fire_latam";
-const GAME = "Free Fire LATAM";
-const CURRENCY = "USD";
-
+const GAME_NAME = "Free Fire LATAM";
 const VIP_MARKUP = 0.08;
+
+const FAZER_ORIGIN = "https://reseller.fazercards.com";
+const FAZER_REFERER = "https://reseller.fazercards.com/";
 
 // ============================================================
 // SUPABASE ADMIN
@@ -172,12 +169,81 @@ function isObject(value: unknown): value is Obj {
   );
 }
 
-function findOffer(id: string) {
-  return FREE_FIRE_OFFERS.find(
-    (offer) =>
-      offer.id === id ||
-      offer.supplierOfferId === id
+function getOffer(offerId: string) {
+  return (
+    FREE_FIRE_OFFERS.find(
+      (offer) =>
+        offer.id === offerId ||
+        offer.supplierOfferId === offerId
+    ) ?? null
   );
+}
+
+function jsonError(message: string, status = 400) {
+  return NextResponse.json(
+    { ok: false, error: message },
+    { status }
+  );
+}
+
+function getSupplierOrderId(data: any): string | null {
+  const value =
+    data?.order_id ??
+    data?.id ??
+    data?.order?.id ??
+    data?.data?.order_id ??
+    data?.data?.id ??
+    data?.data?.order?.id ??
+    null;
+
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  return String(value).trim();
+}
+
+function getSupplierStatus(data: any): string {
+  return String(
+    data?.status ??
+      data?.order?.status ??
+      data?.data?.status ??
+      data?.data?.order?.status ??
+      ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+function isSuccessfulSupplierStatus(status: string) {
+  return [
+    "completed",
+    "complete",
+    "success",
+    "successful",
+    "delivered",
+    "done",
+    "succeeded",
+  ].includes(status.toLowerCase().trim());
+}
+
+function isRejectedSupplierStatus(status: string) {
+  return [
+    "rejected",
+    "failed",
+    "failure",
+    "cancelled",
+    "canceled",
+    "error",
+    "declined",
+    "denied",
+    "refund",
+    "refunded",
+  ].includes(status.toLowerCase().trim());
 }
 
 function isValidUUID(value: string) {
@@ -186,65 +252,11 @@ function isValidUUID(value: string) {
   );
 }
 
-function getSupplierOrderId(value: unknown): string {
-  if (!isObject(value)) return "";
+// ============================================================
+// AUTENTICACIÓN
+// ============================================================
 
-  const data = isObject(value.data) ? value.data : {};
-  const order = isObject(value.order) ? value.order : {};
-  const dataOrder = isObject(data.order)
-    ? data.order
-    : {};
-
-  const candidates = [
-    order.id,
-    dataOrder.id,
-    value.order_id,
-    value.orderId,
-    data.order_id,
-    data.orderId,
-    data.id,
-    value.id,
-  ];
-
-  for (const candidate of candidates) {
-    if (
-      typeof candidate !== "string" &&
-      typeof candidate !== "number"
-    ) {
-      continue;
-    }
-
-    const id = String(candidate).trim();
-
-    if (/^ord-[A-Za-z0-9_-]+$/.test(id)) {
-      return id;
-    }
-  }
-
-  return "";
-}
-
-function getSupplierStatus(value: unknown): string {
-  if (!isObject(value)) return "PENDING";
-
-  const data = isObject(value.data) ? value.data : {};
-  const order = isObject(value.order) ? value.order : {};
-  const dataOrder = isObject(data.order)
-    ? data.order
-    : {};
-
-  return String(
-    order.status ??
-      dataOrder.status ??
-      value.status ??
-      data.status ??
-      "PENDING"
-  )
-    .trim()
-    .toUpperCase();
-}
-
-function getBearerToken(request: NextRequest) {
+async function getAuthenticatedUser(request: NextRequest) {
   const authorization =
     request.headers.get("authorization");
 
@@ -252,22 +264,16 @@ function getBearerToken(request: NextRequest) {
     return null;
   }
 
-  return authorization.slice(7).trim() || null;
-}
-
-// ============================================================
-// AUTENTICACIÓN
-// ============================================================
-
-async function getUser(request: NextRequest) {
-  const token = getBearerToken(request);
+  const token = authorization.slice(7).trim();
 
   if (!token) return null;
 
   const { data, error } =
     await supabaseAdmin.auth.getUser(token);
 
-  if (error || !data.user) return null;
+  if (error || !data.user) {
+    return null;
+  }
 
   return data.user;
 }
@@ -292,36 +298,9 @@ async function updateOrder(
 
   if (error || !data) {
     throw new Error(
-      `No se pudo actualizar la orden: ${
-        error?.message || "orden no encontrada"
-      }`
+      error?.message || "No se pudo actualizar la orden."
     );
   }
-}
-
-// ============================================================
-// MARCAR ORDEN PENDIENTE
-// ============================================================
-
-async function setPending(
-  orderId: string,
-  reason: string,
-  response?: unknown
-) {
-  const supplierResponse: Obj = {
-    requires_reconciliation: true,
-    reason,
-    saved_at: new Date().toISOString(),
-  };
-
-  if (response !== undefined) {
-    supplierResponse.response = response;
-  }
-
-  await updateOrder(orderId, {
-    status: "SUPPLIER_PENDING",
-    supplier_response: supplierResponse,
-  });
 }
 
 // ============================================================
@@ -367,7 +346,7 @@ async function refundBalance(orderId: string) {
 
   if (error) {
     throw new Error(
-      `Error de reembolso: ${error.message}`
+      `Error devolviendo saldo: ${error.message}`
     );
   }
 
@@ -375,7 +354,7 @@ async function refundBalance(orderId: string) {
     throw new Error(
       data?.error ||
         data?.message ||
-        "No se pudo reembolsar el saldo."
+        "No se pudo devolver el saldo."
     );
   }
 
@@ -396,7 +375,7 @@ async function completeOrder(orderId: string) {
 
   if (error) {
     throw new Error(
-      `Error completando la orden: ${error.message}`
+      `Error completando orden: ${error.message}`
     );
   }
 
@@ -412,24 +391,19 @@ async function completeOrder(orderId: string) {
 }
 
 // ============================================================
-// RESPUESTA PARA ÓRDENES EXISTENTES
+// RESPUESTA PARA ORDEN EXISTENTE
 // ============================================================
 
-async function responseForExistingOrder(
+async function existingOrderResponse(
   order: Obj,
   userId: string,
   offerId: string,
   playerId: string
 ) {
   if (order.user_id !== userId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Esta clave de idempotencia ya pertenece a otra solicitud.",
-        code: "IDEMPOTENCY_CONFLICT",
-      },
-      { status: 409 }
+    return jsonError(
+      "La clave de idempotencia ya está siendo utilizada.",
+      409
     );
   }
 
@@ -437,68 +411,31 @@ async function responseForExistingOrder(
     order.offer_id !== offerId &&
     order.supplier_fields?.supplier_offer_id !== offerId
   ) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "La clave de idempotencia ya se utilizó con otra oferta.",
-        code: "IDEMPOTENCY_CONFLICT",
-      },
-      { status: 409 }
+    return jsonError(
+      "La clave ya se utilizó con otra oferta.",
+      409
     );
   }
 
   if (String(order.player_id) !== playerId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "La clave de idempotencia ya se utilizó con otro jugador.",
-        code: "IDEMPOTENCY_CONFLICT",
-      },
-      { status: 409 }
+    return jsonError(
+      "La clave ya se utilizó con otro jugador.",
+      409
     );
   }
 
-  const status = String(order.status || "UNKNOWN").toUpperCase();
-
-  if (status === "COMPLETED") {
-    return NextResponse.json({
-      ok: true,
-      orderId: order.id,
-      supplierOrderId: order.supplier_order_id,
-      status,
-      message: "Esta solicitud ya figura como completada.",
-    });
-  }
-
-  if (
-    status === "REFUNDED" ||
-    status === "CANCELLED"
-  ) {
-    return NextResponse.json(
-      {
-        ok: false,
-        orderId: order.id,
-        status,
-        message:
-          "Esta solicitud ya tiene un estado final. No se envió otra compra.",
-      },
-      { status: 409 }
-    );
-  }
-
-  return NextResponse.json(
-    {
-      ok: true,
-      orderId: order.id,
-      supplierOrderId: order.supplier_order_id,
-      status,
-      message:
-        "Esta solicitud ya está registrada. No se volvió a enviar a FazerCards.",
-    },
-    { status: 202 }
-  );
+  return NextResponse.json({
+    ok: true,
+    alreadyCreated: true,
+    orderNumber: order.id,
+    supplierOrderId: order.supplier_order_id,
+    status: order.status,
+    offerId: order.offer_id,
+    offerName: order.offer_name,
+    playerId: order.player_id,
+    retailPrice: order.retail_price,
+    supplierPrice: order.supplier_price,
+  });
 }
 
 // ============================================================
@@ -506,11 +443,11 @@ async function responseForExistingOrder(
 // ============================================================
 
 export async function POST(request: NextRequest) {
-  let orderId: string | null = null;
+  let internalOrderId: string | null = null;
   let balanceReserved = false;
-  let providerRequestStarted = false;
-  let providerResponseReceived = false;
-  let providerResponseBody: unknown;
+  let supplierRequestStarted = false;
+  let supplierResponseReceived = false;
+  let supplierData: any = null;
 
   try {
     // --------------------------------------------------------
@@ -521,75 +458,34 @@ export async function POST(request: NextRequest) {
       !SUPABASE_URL ||
       !SUPABASE_SERVICE_ROLE_KEY
     ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Supabase no está configurado en el servidor.",
-        },
-        { status: 500 }
+      return jsonError(
+        "Supabase no está configurado.",
+        500
       );
     }
 
-    if (!FAZER_API_KEY) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Falta configurar FazerCards en el servidor.",
-        },
-        { status: 500 }
+    const fazerApiKey =
+      process.env.FAZERCARDS_API_KEY;
+
+    if (!fazerApiKey) {
+      return jsonError(
+        "El servicio de recargas no está configurado.",
+        500
       );
     }
 
     // --------------------------------------------------------
-    // 2. VALIDAR ORIGIN
+    // 2. AUTENTICACIÓN
     // --------------------------------------------------------
 
-    let providerOrigin: string | undefined;
-
-    if (FAZERCARDS_ORIGIN) {
-      try {
-        const parsedOrigin = new URL(FAZERCARDS_ORIGIN);
-
-        if (
-          parsedOrigin.protocol !== "https:" &&
-          parsedOrigin.hostname !== "localhost"
-        ) {
-          throw new Error("Origin debe utilizar HTTPS.");
-        }
-
-        providerOrigin = parsedOrigin.origin;
-      } catch {
-        return NextResponse.json(
-          {
-            ok: false,
-            error:
-              "FAZERCARDS_ORIGIN no es una URL válida.",
-          },
-          { status: 500 }
-        );
-      }
-    }
-
-    // --------------------------------------------------------
-    // 3. AUTENTICAR USUARIO
-    // --------------------------------------------------------
-
-    const user = await getUser(request);
+    const user = await getAuthenticatedUser(request);
 
     if (!user) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "No autorizado.",
-        },
-        { status: 401 }
-      );
+      return jsonError("Sesión inválida o expirada.", 401);
     }
 
     // --------------------------------------------------------
-    // 4. LEER SOLICITUD
+    // 3. LEER SOLICITUD
     // --------------------------------------------------------
 
     let body: Obj;
@@ -597,73 +493,66 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "El cuerpo de la solicitud no es JSON válido.",
-        },
-        { status: 400 }
+      return jsonError("El cuerpo JSON no es válido.");
+    }
+
+    const offerId =
+      typeof body?.offerId === "string"
+        ? body.offerId.trim()
+        : "";
+
+    const playerId =
+      typeof body?.playerId === "string"
+        ? body.playerId.trim()
+        : "";
+
+    const suppliedKey =
+      typeof body?.idempotencyKey === "string"
+        ? body.idempotencyKey.trim()
+        : request.headers.get("idempotency-key")?.trim() || "";
+
+    if (suppliedKey.length > 200) {
+      return jsonError(
+        "Clave de idempotencia demasiado larga."
       );
     }
 
-    const offerId = String(
-      body.offerId ?? ""
-    ).trim();
-
-    const playerId = String(
-      body.playerId ?? ""
-    ).trim();
-
-    const idempotencyKey = String(
-      request.headers.get("idempotency-key") ??
-        body.idempotencyKey ??
-        ""
-    ).trim();
+    const idempotencyKey =
+      suppliedKey || crypto.randomUUID();
 
     if (!isValidUUID(idempotencyKey)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Falta una clave de idempotencia UUID válida.",
-          code: "IDEMPOTENCY_KEY_REQUIRED",
-        },
-        { status: 400 }
+      return jsonError(
+        "La clave de idempotencia debe ser un UUID válido."
       );
     }
 
-    if (!offerId || !playerId) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: !offerId
-            ? "Falta seleccionar una oferta."
-            : "Debe introducir el ID del jugador.",
-        },
-        { status: 400 }
-      );
+    if (!offerId) {
+      return jsonError("Falta seleccionar una oferta.");
+    }
+
+    if (
+      !playerId ||
+      !/^[0-9]+$/.test(playerId) ||
+      playerId.length < 3 ||
+      playerId.length > 20
+    ) {
+      return jsonError("El ID del jugador no es válido.");
     }
 
     // --------------------------------------------------------
-    // 5. BUSCAR OFERTA
+    // 4. VALIDAR OFERTA
     // --------------------------------------------------------
 
-    const offer = findOffer(offerId);
+    const offer = getOffer(offerId);
 
     if (!offer) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "La oferta de Free Fire LATAM no existe en STORE GAMING.",
-        },
-        { status: 400 }
+      return jsonError(
+        "La oferta de Free Fire LATAM no existe."
       );
     }
 
     // --------------------------------------------------------
-    // 6. COMPROBAR IDEMPOTENCIA ANTES DE CREAR
+    // 5. COMPROBAR IDEMPOTENCIA
     // --------------------------------------------------------
 
     const { data: existingOrder, error: existingError } =
@@ -674,13 +563,19 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
     if (existingError) {
-      throw new Error(
-        `Error consultando idempotencia: ${existingError.message}`
+      console.error(
+        "ERROR IDEMPOTENCIA:",
+        existingError
+      );
+
+      return jsonError(
+        "No se pudo comprobar la orden anterior.",
+        500
       );
     }
 
     if (existingOrder) {
-      return responseForExistingOrder(
+      return existingOrderResponse(
         existingOrder,
         user.id,
         offer.id,
@@ -689,7 +584,7 @@ export async function POST(request: NextRequest) {
     }
 
     // --------------------------------------------------------
-    // 7. VERIFICAR MEMBRESÍA VIP
+    // 6. COMPROBAR VIP
     // --------------------------------------------------------
 
     const { data: profile, error: profileError } =
@@ -701,30 +596,26 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       console.error(
-        "Error verificando VIP:",
+        "ERROR CONSULTANDO VIP:",
         profileError
       );
 
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "No se pudo verificar tu membresía VIP.",
-        },
-        { status: 500 }
+      return jsonError(
+        "No se pudo comprobar la membresía.",
+        500
       );
     }
 
-    const vipExpiresAt = profile?.vip_expires_at
+    const expiration = profile?.vip_expires_at
       ? new Date(profile.vip_expires_at).getTime()
       : 0;
 
     const vipActive =
-      Number.isFinite(vipExpiresAt) &&
-      vipExpiresAt > Date.now();
+      Number.isFinite(expiration) &&
+      expiration > Date.now();
 
     // --------------------------------------------------------
-    // 8. CALCULAR PRECIO
+    // 7. CALCULAR PRECIOS
     // --------------------------------------------------------
 
     const supplierPrice = Number(
@@ -739,42 +630,29 @@ export async function POST(request: NextRequest) {
 
     if (
       !Number.isFinite(supplierPrice) ||
-      !Number.isFinite(retailPrice) ||
       supplierPrice <= 0 ||
+      !Number.isFinite(retailPrice) ||
       retailPrice <= 0
     ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "No se pudo calcular correctamente el precio.",
-        },
-        { status: 500 }
+      return jsonError(
+        "El precio de la oferta no es válido.",
+        500
       );
     }
 
-    console.info(
-      "Precio calculado para Free Fire LATAM",
-      {
-        userId: user.id,
-        offerId: offer.id,
-        vipActive,
-        supplierPrice,
-        retailPrice,
-      }
-    );
-
     // --------------------------------------------------------
-    // 9. INSERTAR ORDEN EN TABLA UNIVERSAL
+    // 8. CREAR ORDEN UNIVERSAL
+    // IMPORTANTE: RESERVED PARA LA RPC UNIVERSAL
     // --------------------------------------------------------
 
     const username =
-      user.user_metadata?.username ||
-      user.user_metadata?.name ||
-      user.email ||
+      user.user_metadata?.username ??
+      user.user_metadata?.user_name ??
+      user.user_metadata?.name ??
+      user.email ??
       "Cliente";
 
-    const { data: newOrder, error: insertError } =
+    const { data: insertedOrder, error: insertError } =
       await supabaseAdmin
         .from("topup_orders")
         .insert({
@@ -782,7 +660,7 @@ export async function POST(request: NextRequest) {
           username,
           email: user.email ?? null,
 
-          game: GAME,
+          game: GAME_NAME,
           category_id: CATEGORY_ID,
 
           offer_id: offer.id,
@@ -792,7 +670,7 @@ export async function POST(request: NextRequest) {
 
           retail_price: retailPrice,
           supplier_price: supplierPrice,
-          currency: CURRENCY,
+          currency: "USD",
 
           status: "RESERVED",
 
@@ -810,24 +688,25 @@ export async function POST(request: NextRequest) {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .select("*")
+        .select("id")
         .single();
 
-    if (insertError || !newOrder) {
+    if (insertError || !insertedOrder) {
+      console.error(
+        "ERROR CREANDO ORDEN:",
+        insertError
+      );
+
       if (insertError?.code === "23505") {
-        const { data: duplicate, error: duplicateError } =
+        const { data: duplicate } =
           await supabaseAdmin
             .from("topup_orders")
             .select("*")
             .eq("idempotency_key", idempotencyKey)
             .maybeSingle();
 
-        if (duplicateError) {
-          throw new Error(duplicateError.message);
-        }
-
         if (duplicate) {
-          return responseForExistingOrder(
+          return existingOrderResponse(
             duplicate,
             user.id,
             offer.id,
@@ -836,65 +715,49 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      throw new Error(
-        `No se pudo insertar la orden: ${
-          insertError?.message || "error desconocido"
-        }`
+      return jsonError(
+        "No se pudo crear la orden.",
+        500
       );
     }
 
-    orderId = newOrder.id;
+    internalOrderId = insertedOrder.id;
 
     // --------------------------------------------------------
-    // 10. RESERVAR SALDO CON RPC UNIVERSAL
+    // 9. RESERVAR SALDO CON RPC UNIVERSAL
     // --------------------------------------------------------
 
     try {
-      await reserveBalance(orderId);
+      await reserveBalance(internalOrderId);
       balanceReserved = true;
-    } catch (error: any) {
+    } catch (error) {
       console.error(
-        "Error reservando saldo:",
-        error?.message || error
+        "ERROR RESERVANDO SALDO:",
+        error
       );
 
-      await updateOrder(orderId, {
+      await updateOrder(internalOrderId, {
         status: "RESERVATION_FAILED",
         supplier_response: {
           stage: "balance_reservation",
-          error: error?.message || "Reservation failed",
-        },
-      }).catch((saveError) => {
-        console.error(
-          "No se pudo actualizar reserva fallida:",
-          saveError
-        );
-      });
-
-      return NextResponse.json(
-        {
-          ok: false,
-          orderId,
           error:
-            error?.message ||
-            "No se pudo reservar el saldo.",
-          code: "ORDER_RESERVATION_FAILED",
+            error instanceof Error
+              ? error.message
+              : String(error),
         },
-        { status: 400 }
+      }).catch(console.error);
+
+      return jsonError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo reservar el saldo.",
+        400
       );
     }
 
     // --------------------------------------------------------
-    // 11. MARCAR PROCESAMIENTO
-    // --------------------------------------------------------
-
-    await updateOrder(orderId, {
-      status: "PROCESSING",
-    });
-
-    // --------------------------------------------------------
-    // 12. PREPARAR PEDIDO FAZERCARDS
-    // ADAPTADO A LOS ENCABEZADOS DE MOBILE LEGENDS
+    // 10. PREPARAR PEDIDO FAZERCARDS
+    // MISMA LÓGICA DE HEADERS DE MOBILE LEGENDS
     // --------------------------------------------------------
 
     const payload = {
@@ -906,141 +769,200 @@ export async function POST(request: NextRequest) {
     };
 
     const headers: Record<string, string> = {
-      "X-API-Key": FAZER_API_KEY,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "X-API-Key": fazerApiKey,
       "Idempotency-Key": idempotencyKey,
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+      Referer: FAZER_REFERER,
+      Origin: FAZER_ORIGIN,
     };
 
-    // Se conserva el dominio propio configurado.
-    // No se suplanta el dominio de otro servicio.
-    if (providerOrigin) {
-      headers.Origin = providerOrigin;
-      headers.Referer = `${providerOrigin}/`;
-    }
-
     console.info(
-      "Enviando orden de Free Fire LATAM a FazerCards",
+      "ENVIANDO FREE FIRE LATAM A FAZERCARDS:",
       {
-        orderId,
+        internalOrderId,
+        categoryId: CATEGORY_ID,
         offerId: offer.id,
         supplierOfferId: offer.supplierOfferId,
-        categoryId: CATEGORY_ID,
-        hasOrigin: Boolean(providerOrigin),
-        hasIdempotencyKey: Boolean(idempotencyKey),
+        hasIdempotencyKey: true,
       }
     );
 
     // --------------------------------------------------------
-    // 13. ENVIAR SOLICITUD AL PROVEEDOR
+    // 11. ENVIAR PEDIDO
     // --------------------------------------------------------
 
-    providerRequestStarted = true;
-
-    const response = await fetch(
-      `${FAZER_API_BASE}/topups/order`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        cache: "no-store",
-        signal: AbortSignal.timeout(25000),
-      }
-    );
-
-    const responseText = await response.text();
-
-    let result: unknown;
+    let supplierResponse: Response;
 
     try {
-      result = responseText
-        ? JSON.parse(responseText)
-        : {};
-    } catch {
-      result = {
-        raw: responseText,
-      };
-    }
+      supplierRequestStarted = true;
 
-    providerResponseReceived = true;
-    providerResponseBody = result;
+      supplierResponse = await fetch(
+        `${FAZER_API_BASE}/topups/order`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          cache: "no-store",
+          signal: AbortSignal.timeout(25000),
+        }
+      );
+    } catch (connectionError) {
+      console.error(
+        "ERROR DE CONEXIÓN FAZERCARDS:",
+        connectionError
+      );
 
-    const supplierId = getSupplierOrderId(result);
-    const supplierStatus = getSupplierStatus(result);
-
-    const now = new Date().toISOString();
-
-    console.info("Respuesta de FazerCards", {
-      orderId,
-      httpStatus: response.status,
-      hasSupplierId: Boolean(supplierId),
-      supplierStatus,
-    });
-
-    // --------------------------------------------------------
-    // 14. RESPUESTA HTTP NO EXITOSA
-    // --------------------------------------------------------
-
-    if (!response.ok) {
-      const ambiguous =
-        response.status === 408 ||
-        response.status === 425 ||
-        response.status === 429 ||
-        response.status >= 500;
-
-      const pendingValues: Obj = {
+      await updateOrder(internalOrderId, {
         status: "SUPPLIER_PENDING",
         supplier_response: {
-          http_status: response.status,
-          response: result,
+          connection_error: true,
           requires_reconciliation: true,
-          reason: ambiguous
-            ? "AMBIGUOUS_HTTP_RESPONSE"
-            : "HTTP_ERROR_REQUIRES_VERIFICATION",
-          saved_at: now,
+          message:
+            "No se pudo confirmar la respuesta del proveedor.",
         },
-      };
-
-      if (supplierId) {
-        pendingValues.supplier_order_id = supplierId;
-      }
-
-      await updateOrder(orderId, pendingValues);
+      });
 
       return NextResponse.json(
         {
           ok: true,
-          orderId,
-          supplierOrderId: supplierId || null,
+          orderNumber: internalOrderId,
           status: "SUPPLIER_PENDING",
           message:
-            "No se pudo confirmar el resultado. La orden quedó pendiente de verificación. No repitas la solicitud.",
+            "No se pudo confirmar la respuesta de FazerCards. El saldo permanece reservado.",
         },
         { status: 202 }
       );
     }
 
     // --------------------------------------------------------
-    // 15. COMPROBAR ID DE FAZERCARDS
+    // 12. LEER RESPUESTA FAZERCARDS
     // --------------------------------------------------------
 
-    if (!supplierId) {
-      await setPending(
-        orderId,
-        "MISSING_OR_INVALID_SUPPLIER_ORDER_ID",
-        result
+    const supplierText =
+      await supplierResponse.text();
+
+    try {
+      supplierData = supplierText
+        ? JSON.parse(supplierText)
+        : null;
+    } catch {
+      supplierData = {
+        raw_response: supplierText,
+      };
+    }
+
+    supplierResponseReceived = true;
+
+    console.info(
+      "RESPUESTA FAZERCARDS FREE FIRE:",
+      {
+        httpStatus: supplierResponse.status,
+        response: supplierData,
+      }
+    );
+
+    const supplierOrderId =
+      getSupplierOrderId(supplierData);
+
+    const supplierStatus =
+      getSupplierStatus(supplierData);
+
+    // --------------------------------------------------------
+    // 13. DETERMINAR SI EL PROVEEDOR RECHAZÓ
+    // --------------------------------------------------------
+
+    const explicitRejection =
+      isRejectedSupplierStatus(supplierStatus) ||
+      supplierData?.ok === false ||
+      (
+        supplierResponse.status >= 400 &&
+        supplierResponse.status < 500 &&
+        !supplierOrderId
       );
+
+    // --------------------------------------------------------
+    // 14. RECHAZO EXPLÍCITO: REEMBOLSO UNIVERSAL
+    // --------------------------------------------------------
+
+    if (explicitRejection) {
+      await updateOrder(internalOrderId, {
+        supplier_order_id: supplierOrderId,
+        supplier_response: {
+          http_status: supplierResponse.status,
+          response: supplierData,
+          supplier_status: supplierStatus,
+          reason: "SUPPLIER_EXPLICIT_REJECTION",
+        },
+        status: "SUPPLIER_PENDING",
+      });
+
+      try {
+        await refundBalance(internalOrderId);
+      } catch (refundError) {
+        console.error(
+          "ERROR REEMBOLSANDO ORDEN:",
+          refundError
+        );
+
+        return NextResponse.json(
+          {
+            ok: false,
+            orderNumber: internalOrderId,
+            supplierOrderId,
+            status: "SUPPLIER_PENDING",
+            error:
+              "El proveedor rechazó el pedido, pero el reembolso necesita revisión.",
+          },
+          { status: 202 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          ok: false,
+          orderNumber: internalOrderId,
+          supplierOrderId,
+          status: "REFUNDED",
+          supplierStatus,
+          supplierResponse: supplierData,
+          message:
+            "FazerCards rechazó el pedido. El saldo fue devuelto.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // --------------------------------------------------------
+    // 15. RESPUESTA INCIERTA O SIN ID
+    // --------------------------------------------------------
+
+    if (
+      !supplierResponse.ok ||
+      !supplierOrderId
+    ) {
+      await updateOrder(internalOrderId, {
+        status: "SUPPLIER_PENDING",
+        supplier_order_id: supplierOrderId,
+        supplier_response: {
+          http_status: supplierResponse.status,
+          response: supplierData,
+          supplier_status: supplierStatus,
+          requires_reconciliation: true,
+        },
+      });
 
       return NextResponse.json(
         {
           ok: true,
-          orderId,
-          supplierOrderId: null,
+          orderNumber: internalOrderId,
+          supplierOrderId,
           status: "SUPPLIER_PENDING",
+          supplierStatus: supplierStatus || "pending",
           message:
-            "FazerCards respondió, pero falta un ID válido. La orden necesita revisión. No repitas la solicitud.",
+            "La respuesta de FazerCards necesita verificación. El saldo permanece reservado.",
         },
         { status: 202 }
       );
@@ -1048,203 +970,100 @@ export async function POST(request: NextRequest) {
 
     // --------------------------------------------------------
     // 16. GUARDAR ID DEL PROVEEDOR
-    // ANTES DE COMPLETAR LA ORDEN
     // --------------------------------------------------------
 
-    await updateOrder(orderId, {
-      supplier_order_id: supplierId,
+    await updateOrder(internalOrderId, {
+      supplier_order_id: supplierOrderId,
       supplier_response: {
-        http_status: response.status,
-        response: result,
+        http_status: supplierResponse.status,
+        response: supplierData,
         supplier_status: supplierStatus,
       },
-      status: "PROCESSING",
+      status: "SUPPLIER_PENDING",
     });
 
-    const {
-      data: savedOrder,
-      error: verifyIdError,
-    } = await supabaseAdmin
-      .from("topup_orders")
-      .select("supplier_order_id")
-      .eq("id", orderId)
-      .maybeSingle();
+    // Verificar que el ID quedó guardado.
+
+    const { data: savedOrder, error: verifyError } =
+      await supabaseAdmin
+        .from("topup_orders")
+        .select("supplier_order_id")
+        .eq("id", internalOrderId)
+        .maybeSingle();
 
     if (
-      verifyIdError ||
+      verifyError ||
       !savedOrder ||
-      savedOrder.supplier_order_id !== supplierId
+      savedOrder.supplier_order_id !== supplierOrderId
     ) {
-      await setPending(
-        orderId,
-        "SUPPLIER_ID_SAVE_NOT_VERIFIED",
-        result
-      );
-
-      return NextResponse.json(
-        {
-          ok: true,
-          orderId,
-          supplierOrderId: supplierId,
-          status: "SUPPLIER_PENDING",
-          message:
-            "No se pudo verificar el ID guardado. No repitas la solicitud.",
-        },
-        { status: 202 }
+      throw new Error(
+        "No se pudo verificar el ID del proveedor."
       );
     }
 
     // --------------------------------------------------------
-    // 17. COMPLETAR SI EL PROVEEDOR CONFIRMA
-    // RPC UNIVERSAL POR ID DE NUESTRA ORDEN
+    // 17. COMPLETAR SI FAZERCARDS CONFIRMÓ
+    // RPC UNIVERSAL
     // --------------------------------------------------------
 
-    const completedStatuses = [
-      "COMPLETED",
-      "COMPLETE",
-      "SUCCESS",
-      "SUCCESSFUL",
-      "SUCCEEDED",
-      "DELIVERED",
-      "DONE",
-    ];
+    if (isSuccessfulSupplierStatus(supplierStatus)) {
+      await completeOrder(internalOrderId);
 
-    if (completedStatuses.includes(supplierStatus)) {
-      try {
-        await completeOrder(orderId);
-
-        const {
-          data: finalOrder,
-          error: finalError,
-        } = await supabaseAdmin
+      const { data: completedOrder, error: completeVerifyError } =
+        await supabaseAdmin
           .from("topup_orders")
-          .select("status, refunded_at, supplier_order_id")
-          .eq("id", orderId)
+          .select(
+            "status, supplier_order_id, refunded_at"
+          )
+          .eq("id", internalOrderId)
           .maybeSingle();
 
-        if (
-          finalError ||
-          !finalOrder ||
-          String(finalOrder.status).toUpperCase() !==
-            "COMPLETED" ||
-          finalOrder.refunded_at ||
-          finalOrder.supplier_order_id !== supplierId
-        ) {
-          throw new Error(
-            "No se pudo verificar el estado final."
-          );
-        }
-
-        return NextResponse.json({
-          ok: true,
-          orderId,
-          supplierOrderId: supplierId,
-          status: "COMPLETED",
-          message:
-            "Recarga completada correctamente.",
-        });
-      } catch (error: any) {
-        console.error(
-          "Error completando orden:",
-          error?.message || error
-        );
-
-        await setPending(
-          orderId,
-          "COMPLETION_RPC_FAILED",
-          result
-        ).catch((saveError) => {
-          console.error(
-            "No se pudo guardar estado pendiente:",
-            saveError
-          );
-        });
-
-        return NextResponse.json(
-          {
-            ok: true,
-            orderId,
-            supplierOrderId: supplierId,
-            status: "SUPPLIER_PENDING",
-            message:
-              "El proveedor informa que terminó, pero la orden requiere reconciliación.",
-          },
-          { status: 202 }
+      if (
+        completeVerifyError ||
+        !completedOrder ||
+        completedOrder.status !== "COMPLETED" ||
+        completedOrder.refunded_at ||
+        completedOrder.supplier_order_id !== supplierOrderId
+      ) {
+        throw new Error(
+          "No se pudo verificar la finalización de la orden."
         );
       }
+
+      return NextResponse.json({
+        ok: true,
+        orderNumber: internalOrderId,
+        supplierOrderId,
+        status: "COMPLETED",
+        offerId: offer.id,
+        offerName: offer.name,
+        playerId,
+        retailPrice,
+        supplierPrice,
+        vipActive,
+        supplierStatus,
+      });
     }
 
     // --------------------------------------------------------
-    // 18. ESTADOS DE FALLO
-    // EL CRON UNIVERSAL VERIFICARÁ Y REEMBOLSARÁ
+    // 18. PEDIDO ACEPTADO O EN PROCESO
     // --------------------------------------------------------
-
-    const failedStatuses = [
-      "FAILED",
-      "FAILURE",
-      "ERROR",
-      "REJECTED",
-      "DECLINED",
-      "DENIED",
-      "CANCELLED",
-      "CANCELED",
-      "REFUND",
-      "REFUNDED",
-      "REFUND_SUCCESS",
-      "REFUND_FAILED",
-    ];
-
-    if (failedStatuses.includes(supplierStatus)) {
-      await setPending(
-        orderId,
-        `SUPPLIER_REPORTED_${supplierStatus}`,
-        result
-      );
-
-      return NextResponse.json(
-        {
-          ok: true,
-          orderId,
-          supplierOrderId: supplierId,
-          status: "SUPPLIER_PENDING",
-          message:
-            "El proveedor informó un estado de fallo. Se verificará antes de devolver el saldo.",
-        },
-        { status: 202 }
-      );
-    }
-
-    // --------------------------------------------------------
-    // 19. ESTADOS EN PROCESO
-    // --------------------------------------------------------
-
-    const nextStatus = [
-      "CONFIRMED",
-      "ACCEPTED",
-    ].includes(supplierStatus)
-      ? "CONFIRMED"
-      : supplierStatus === "PROCESSING"
-        ? "PROCESSING"
-        : "SUPPLIER_PENDING";
-
-    await updateOrder(orderId, {
-      status: nextStatus,
-      supplier_order_id: supplierId,
-      supplier_response: {
-        http_status: response.status,
-        response: result,
-        supplier_status: supplierStatus,
-      },
-    });
 
     return NextResponse.json(
       {
         ok: true,
-        orderId,
-        supplierOrderId: supplierId,
-        status: nextStatus,
+        orderNumber: internalOrderId,
+        supplierOrderId,
+        status: "SUPPLIER_PENDING",
+        offerId: offer.id,
+        offerName: offer.name,
+        playerId,
+        retailPrice,
+        supplierPrice,
+        vipActive,
+        supplierStatus: supplierStatus || "pending",
         message:
-          "La orden quedó registrada y se verificará con FazerCards.",
+          "FazerCards recibió el pedido. Se verificará mediante el cron universal.",
       },
       { status: 202 }
     );
@@ -1254,46 +1073,61 @@ export async function POST(request: NextRequest) {
         ? error.message
         : String(error);
 
-    console.error("Free Fire LATAM API error:", {
-      orderId,
-      balanceReserved,
-      providerRequestStarted,
-      providerResponseReceived,
-      message,
-    });
+    console.error(
+      "ERROR GENERAL FREE FIRE LATAM:",
+      {
+        internalOrderId,
+        balanceReserved,
+        supplierRequestStarted,
+        supplierResponseReceived,
+        message,
+      }
+    );
 
     // --------------------------------------------------------
-    // 20. RECUPERACIÓN SEGÚN LA ETAPA DEL ERROR
+    // 19. RECUPERACIÓN SEGURA
     // --------------------------------------------------------
 
-    if (orderId) {
+    if (internalOrderId) {
       try {
-        if (providerResponseReceived) {
-          await setPending(
-            orderId,
-            "ERROR_AFTER_PROVIDER_RESPONSE",
-            providerResponseBody
-          );
-        } else if (providerRequestStarted) {
-          await setPending(
-            orderId,
-            "PROVIDER_REQUEST_RESULT_UNKNOWN"
-          );
+        if (
+          supplierRequestStarted &&
+          !supplierResponseReceived
+        ) {
+          // Resultado incierto: no reembolsar ni reenviar.
+          await updateOrder(internalOrderId, {
+            status: "SUPPLIER_PENDING",
+            supplier_response: {
+              reason: "PROVIDER_REQUEST_RESULT_UNKNOWN",
+              requires_reconciliation: true,
+              error: message,
+            },
+          });
+        } else if (supplierResponseReceived) {
+          // El proveedor respondió: conservar evidencia.
+          await updateOrder(internalOrderId, {
+            status: "SUPPLIER_PENDING",
+            supplier_response: {
+              reason: "ERROR_AFTER_PROVIDER_RESPONSE",
+              requires_reconciliation: true,
+              response: supplierData,
+              error: message,
+            },
+          });
         } else if (balanceReserved) {
-          await refundBalance(orderId);
+          // Todavía no se inició la solicitud al proveedor.
+          await refundBalance(internalOrderId);
         } else {
-          await updateOrder(orderId, {
+          await updateOrder(internalOrderId, {
             status: "RESERVATION_FAILED",
             supplier_response: {
-              stage: "before_provider_request",
               error: message,
             },
           });
         }
       } catch (recoveryError) {
         console.error(
-          "Error recuperando orden:",
-          orderId,
+          "ERROR RECUPERANDO ORDEN:",
           recoveryError
         );
       }
@@ -1301,23 +1135,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          orderId,
+          orderNumber: internalOrderId,
           status: "SUPPLIER_PENDING",
           message:
-            "No se pudo confirmar el resultado. No repitas la solicitud; verifica el estado de la orden.",
+            "No se pudo confirmar el resultado. No repitas la solicitud.",
         },
         { status: 202 }
       );
     }
 
-    return NextResponse.json(
-      {
-        ok: false,
-        status: "ERROR",
-        message:
-          "No se pudo iniciar la orden.",
-      },
-      { status: 500 }
+    return jsonError(
+      "No se pudo procesar la orden.",
+      500
     );
   }
 }
