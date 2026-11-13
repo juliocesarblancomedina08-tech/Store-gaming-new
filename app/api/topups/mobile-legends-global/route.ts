@@ -123,9 +123,7 @@ export async function POST(request: NextRequest) {
       return jsonError("No autorizado.", 401);
     }
 
-    const accessToken = authorization
-      .slice(7)
-      .trim();
+    const accessToken = authorization.slice(7).trim();
 
     if (!accessToken) {
       return jsonError("Token de acceso inválido.", 401);
@@ -147,6 +145,7 @@ export async function POST(request: NextRequest) {
 
     if (!fazerApiKey) {
       console.error("Falta FAZERCARDS_API_KEY.");
+
       return jsonError(
         "El servicio de recargas no está configurado.",
         500
@@ -236,11 +235,16 @@ export async function POST(request: NextRequest) {
 
     if (existingError) {
       console.error("ERROR DE IDEMPOTENCIA:", existingError);
-      return jsonError("No se pudo comprobar la orden anterior.", 500);
+
+      return jsonError(
+        "No se pudo comprobar la orden anterior.",
+        500
+      );
     }
 
+    // Corrección del error TypeScript:
     const existingOrder =
-      existingData as ExistingOrder | null;
+      existingData as unknown as ExistingOrder | null;
 
     if (existingOrder) {
       if (existingOrder.user_id !== user.id) {
@@ -293,7 +297,10 @@ export async function POST(request: NextRequest) {
       !Number.isFinite(retailPrice) ||
       retailPrice <= 0
     ) {
-      return jsonError("El precio de la oferta no es válido.", 500);
+      return jsonError(
+        "El precio de la oferta no es válido.",
+        500
+      );
     }
 
     // 10. CREAR ORDEN PENDIENTE
@@ -353,11 +360,17 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (raceOrder) {
-        if (raceOrder.user_id !== user.id) {
-          return jsonError("Clave de idempotencia duplicada.", 409);
+        const typedRaceOrder =
+          raceOrder as unknown as ExistingOrder;
+
+        if (typedRaceOrder.user_id !== user.id) {
+          return jsonError(
+            "Clave de idempotencia duplicada.",
+            409
+          );
         }
 
-        return orderResponse(raceOrder as ExistingOrder);
+        return orderResponse(typedRaceOrder);
       }
 
       return jsonError("No se pudo crear la orden.", 500);
@@ -437,7 +450,8 @@ export async function POST(request: NextRequest) {
           status: "SUPPLIER_PENDING",
           supplier_response: {
             connection_error: true,
-            message: "No se pudo confirmar la respuesta del proveedor.",
+            message:
+              "No se pudo confirmar la respuesta del proveedor.",
           },
           updated_at: new Date().toISOString(),
         })
@@ -514,15 +528,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { error: refundError } = await supabaseAdmin.rpc(
-        "refund_mobile_legends_global_balance",
-        {
-          p_order_id: internalOrderId,
-        }
-      );
+      const { error: refundError } =
+        await supabaseAdmin.rpc(
+          "refund_mobile_legends_global_balance",
+          {
+            p_order_id: internalOrderId,
+          }
+        );
 
       if (refundError) {
-        console.error("ERROR DEVOLVIENDO SALDO:", refundError);
+        console.error(
+          "ERROR DEVOLVIENDO SALDO:",
+          refundError
+        );
 
         return NextResponse.json(
           {
@@ -564,7 +582,10 @@ export async function POST(request: NextRequest) {
         .eq("id", internalOrderId);
 
       if (pendingError) {
-        console.error("ERROR GUARDANDO PENDIENTE:", pendingError);
+        console.error(
+          "ERROR GUARDANDO PENDIENTE:",
+          pendingError
+        );
       }
 
       return NextResponse.json(
@@ -583,10 +604,7 @@ export async function POST(request: NextRequest) {
 
     // 16. GUARDAR RESPUESTA E ID DEL PROVEEDOR
 
-    const internalStatus =
-      isSuccessfulSupplierStatus(supplierStatus)
-        ? "SUPPLIER_PENDING"
-        : "SUPPLIER_PENDING";
+    const internalStatus = "SUPPLIER_PENDING";
 
     const { error: saveOrderError } = await supabaseAdmin
       .from("topup_orders")
@@ -599,7 +617,10 @@ export async function POST(request: NextRequest) {
       .eq("id", internalOrderId);
 
     if (saveOrderError) {
-      console.error("ERROR GUARDANDO ORDEN:", saveOrderError);
+      console.error(
+        "ERROR GUARDANDO ORDEN:",
+        saveOrderError
+      );
 
       return NextResponse.json(
         {
