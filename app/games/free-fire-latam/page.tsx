@@ -129,6 +129,10 @@ export default function FreeFireLatamPage() {
 
       const cleanPlayerId = playerId.trim().replace(/\s+/g, "");
 
+      // ------------------------------------------------------
+      // VALIDACIÓN DEL ID DE FREE FIRE
+      // ------------------------------------------------------
+
       if (!cleanPlayerId) {
         setError("Ponga el ID de su cuenta.");
         return;
@@ -147,7 +151,23 @@ export default function FreeFireLatamPage() {
         return;
       }
 
+      // RECHAZAR IDs COMO 000000
+      if (/^0+$/.test(cleanPlayerId)) {
+        setError(
+          "El ID no puede estar compuesto únicamente por ceros. Introduce tu ID real de Free Fire."
+        );
+        return;
+      }
+
+      // ------------------------------------------------------
+      // CREAR CLAVE DE IDEMPOTENCIA
+      // ------------------------------------------------------
+
       const idempotencyKey = crypto.randomUUID();
+
+      // ------------------------------------------------------
+      // ENVIAR PEDIDO A LA API
+      // ------------------------------------------------------
 
       const response = await fetch("/api/topups/free-fire", {
         method: "POST",
@@ -401,11 +421,12 @@ export default function FreeFireLatamPage() {
                 autoComplete="off"
                 placeholder="Introduce tu ID de Free Fire"
                 value={playerId}
-                onChange={(event) =>
+                onChange={(event) => {
                   setPlayerId(
                     event.target.value.replace(/[^0-9]/g, "")
-                  )
-                }
+                  );
+                  setError("");
+                }}
                 maxLength={20}
                 disabled={processing}
               />
