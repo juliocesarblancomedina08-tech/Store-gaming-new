@@ -530,13 +530,21 @@ export async function POST(request: NextRequest) {
       return jsonError("Falta seleccionar una oferta.");
     }
 
+    // --------------------------------------------------------
+    // VALIDACIÓN REFORZADA DEL ID DEL JUGADOR
+    // RECHAZA VALORES COMO 000000
+    // --------------------------------------------------------
+
     if (
       !playerId ||
       !/^[0-9]+$/.test(playerId) ||
       playerId.length < 3 ||
-      playerId.length > 20
+      playerId.length > 20 ||
+      /^0+$/.test(playerId)
     ) {
-      return jsonError("El ID del jugador no es válido.");
+      return jsonError(
+        "El ID del jugador no es válido. Introduce tu ID real de Free Fire."
+      );
     }
 
     // --------------------------------------------------------
