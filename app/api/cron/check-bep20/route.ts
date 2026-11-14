@@ -1,8 +1,10 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 // ======================================================
 // VARIABLES DE ENTORNO
@@ -147,7 +149,7 @@ function isAuthorized(
   request: NextRequest
 ): boolean {
   const secret =
-    process.env.CRON_SECRET?.trim() ?? "";
+    CRON_SECRET?.trim() ?? "";
 
   const authorization =
     request.headers.get("authorization")?.trim() ?? "";
@@ -156,28 +158,12 @@ function isAuthorized(
   const scheme = parts[0]?.toLowerCase() ?? "";
   const providedSecret = parts.slice(1).join(" ").trim();
 
-  const hasSecret = secret.length > 0;
-  const hasAuthorization = authorization.length > 0;
-
-  const secretMatches =
-    hasSecret &&
-    providedSecret.length > 0 &&
-    providedSecret === secret;
-
-  const authorized =
+  return (
+    secret.length > 0 &&
     scheme === "bearer" &&
-    secretMatches;
-
-  console.log("CRON DEBUG:", {
-    hasSecret,
-    secretLength: secret.length,
-    hasAuthorization,
-    authorizationScheme: scheme || null,
-    providedSecretLength: providedSecret.length,
-    secretMatches,
-  });
-
-  return authorized;
+    providedSecret.length > 0 &&
+    providedSecret === secret
+  );
 }
 
 // ======================================================
@@ -206,9 +192,7 @@ function addressToTopic(
       .replace(/^0x/, "");
 
   if (!/^[0-9a-f]{40}$/.test(clean)) {
-    throw new Error(
-      "DIRECCIÓN BSC INVÁLIDA"
-    );
+    throw new Error("DIRECCIÓN BSC INVÁLIDA");
   }
 
   return "0x" + "0".repeat(24) + clean;
@@ -230,7 +214,6 @@ function usdtToRaw(
   }
 
   const parts = text.split(".");
-
   const whole = parts[0] ?? "0";
   const fraction = parts[1] ?? "";
 
@@ -241,14 +224,12 @@ function usdtToRaw(
   }
 
   const paddedFraction = (
-    fraction +
-    "0".repeat(USDT_DECIMALS)
+    fraction + "0".repeat(USDT_DECIMALS)
   ).slice(0, USDT_DECIMALS);
 
-  const rawText =
-    whole + paddedFraction;
-
-  return BigInt(rawText || "0").toString();
+  return BigInt(
+    whole + paddedFraction
+  ).toString();
 }
 
 // ======================================================
@@ -335,10 +316,7 @@ async function getBlockByNumber(
 
   return rpcCall<RpcBlock | null>(
     "eth_getBlockByNumber",
-    [
-      blockHex,
-      false,
-    ]
+    [blockHex, false]
   );
 }
 
@@ -374,8 +352,7 @@ async function getBep20Transfers(
     latestBlock - BLOCK_LOOKBACK
   );
 
-  const expectedAmounts =
-    new Set<string>();
+  const expectedAmounts = new Set<string>();
 
   for (const deposit of deposits) {
     try {
@@ -383,13 +360,9 @@ async function getBep20Transfers(
         usdtToRaw(deposit.amount)
       );
     } catch {
-      // Una cantidad incorrecta no detiene el detector.
+      // Ignorar importes inválidos.
     }
   }
-
-  // ====================================================
-  // FILTRO DEL EVENTO TRANSFER
-  // ====================================================
 
   const logs =
     await rpcCall<RpcLog[]>(
@@ -415,15 +388,9 @@ async function getBep20Transfers(
 
   const transfers: Bep20Transfer[] = [];
 
-  // ====================================================
-  // PROCESAR LOGS
-  // ====================================================
-
   for (const log of logs) {
     try {
-      if (log.removed) {
-        continue;
-      }
+      if (log.removed) continue;
 
       const txHash = log.transactionHash;
       const blockHex = log.blockNumber;
@@ -435,12 +402,9 @@ async function getBep20Transfers(
         !txHash ||
         !blockHex ||
         !contractAddress ||
-        !data
+        !data ||
+        topics.length < 3
       ) {
-        continue;
-      }
-
-      if (topics.length < 3) {
         continue;
       }
 
@@ -458,8 +422,6 @@ async function getBep20Transfers(
         continue;
       }
 
-      // FROM
-
       const fromTopic = topics[1];
 
       if (!fromTopic || fromTopic.length < 42) {
@@ -467,10 +429,7 @@ async function getBep20Transfers(
       }
 
       const from =
-        "0x" +
-        fromTopic.slice(-40).toLowerCase();
-
-      // TO
+        "0x" + fromTopic.slice(-40).toLowerCase();
 
       const toTopic = topics[2];
 
@@ -479,8 +438,7 @@ async function getBep20Transfers(
       }
 
       const to =
-        "0x" +
-        toTopic.slice(-40).toLowerCase();
+        "0x" + toTopic.slice(-40).toLowerCase();
 
       if (
         normalizeAddress(to) !==
@@ -488,8 +446,6 @@ async function getBep20Transfers(
       ) {
         continue;
       }
-
-      // VALOR RAW
 
       let rawValue: string;
 
@@ -506,19 +462,15 @@ async function getBep20Transfers(
       const blockNumber =
         Number(BigInt(blockHex));
 
-      // BLOQUE DE LA TRANSFERENCIA
-
       const block =
         await getBlockByNumber(blockNumber);
 
-      if (!block || !block.timestamp) {
+      if (!block?.timestamp) {
         continue;
       }
 
       const timestamp =
         Number(BigInt(block.timestamp)) * 1000;
-
-      // RECEIPT
 
       const receipt =
         await getTransactionReceipt(txHash);
@@ -543,8 +495,6 @@ async function getBep20Transfers(
         }
       }
 
-      // CONFIRMACIONES
-
       const confirmations =
         latestBlock - blockNumber + 1;
 
@@ -559,6 +509,7 @@ async function getBep20Transfers(
         confirmations,
         successful,
       });
+
     } catch (error) {
       console.error(
         "ERROR PROCESANDO LOG BEP20:",
@@ -584,6 +535,7 @@ async function expireDeposits(): Promise<number> {
         status: "EXPIRED",
       })
       .eq("status", "PENDING")
+      .eq("network", "BEP20")
       .lt("expires_at", now)
       .select("id");
 
@@ -716,7 +668,51 @@ async function confirmDeposit(
       );
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(
+        `ERROR RPC: ${error.message}`
+      );
+    }
+
+    const confirmedDeposit = Array.isArray(data)
+      ? data[0]
+      : data;
+
+    if (
+      !confirmedDeposit ||
+      confirmedDeposit.status !== "CONFIRMED" ||
+      !confirmedDeposit.credited_at ||
+      normalizeAddress(confirmedDeposit.tx_hash) !==
+        normalizeAddress(transfer.hash)
+    ) {
+      throw new Error(
+        "SUPABASE NO CONFIRMÓ CORRECTAMENTE EL DEPÓSITO"
+      );
+    }
+
+    const { data: transaction, error: transactionError } =
+      await supabaseAdmin
+        .from("transactions")
+        .select(
+          "id, user_id, amount, deposit_id, type"
+        )
+        .eq("deposit_id", deposit.id)
+        .maybeSingle();
+
+    if (transactionError) {
+      throw new Error(
+        `ERROR VERIFICANDO MOVIMIENTO: ${transactionError.message}`
+      );
+    }
+
+    if (
+      !transaction ||
+      transaction.user_id !== deposit.user_id ||
+      transaction.deposit_id !== deposit.id ||
+      Number(transaction.amount) !== Number(deposit.amount)
+    ) {
+      throw new Error(
+        "NO SE ENCONTRÓ EL MOVIMIENTO CORRECTO DEL DEPÓSITO"
+      );
     }
 
     return {
@@ -725,7 +721,14 @@ async function confirmDeposit(
       tx_hash: transfer.hash,
       amount: Number(deposit.amount),
     };
+
   } catch (error) {
+    console.error(
+      "ERROR CONFIRMANDO DEPÓSITO:",
+      deposit.id,
+      error
+    );
+
     return {
       deposit_id: deposit.id,
       status: "ERROR",
@@ -747,18 +750,43 @@ async function processDeposits(
 ): Promise<ProcessResult[]> {
   const results: ProcessResult[] = [];
 
-  const usedTransactions =
-    new Set<string>();
+  const matchesByDeposit = new Map<
+    string,
+    Bep20Transfer[]
+  >();
 
+  const matchesByTransfer = new Map<
+    string,
+    Deposit[]
+  >();
+
+  // Buscar coincidencias sin acreditar todavía.
+  for (const deposit of deposits) {
+    const matchingTransfers = transfers.filter(
+      (transfer) => isValidTransfer(transfer, deposit)
+    );
+
+    matchesByDeposit.set(
+      deposit.id,
+      matchingTransfers
+    );
+
+    for (const transfer of matchingTransfers) {
+      const hash = transfer.hash.toLowerCase();
+
+      const current =
+        matchesByTransfer.get(hash) ?? [];
+
+      current.push(deposit);
+
+      matchesByTransfer.set(hash, current);
+    }
+  }
+
+  // Procesar coincidencias inequívocas.
   for (const deposit of deposits) {
     const matchingTransfers =
-      transfers.filter(
-        (transfer) =>
-          !usedTransactions.has(
-            transfer.hash.toLowerCase()
-          ) &&
-          isValidTransfer(transfer, deposit)
-      );
+      matchesByDeposit.get(deposit.id) ?? [];
 
     if (matchingTransfers.length === 0) {
       results.push({
@@ -774,7 +802,7 @@ async function processDeposits(
         deposit_id: deposit.id,
         status: "MULTIPLE_MATCHES",
         error:
-          "SE ENCONTRARON VARIAS TRANSACCIONES CON LA MISMA CANTIDAD DENTRO DE LA VENTANA DEL DEPÓSITO.",
+          "VARIAS TRANSFERENCIAS COINCIDEN CON ESTE DEPÓSITO. REQUIERE REVISIÓN.",
       });
 
       continue;
@@ -782,12 +810,27 @@ async function processDeposits(
 
     const transfer = matchingTransfers[0];
 
-    usedTransactions.add(
-      transfer.hash.toLowerCase()
-    );
+    const matchingDeposits =
+      matchesByTransfer.get(
+        transfer.hash.toLowerCase()
+      ) ?? [];
 
-    const result =
-      await confirmDeposit(deposit, transfer);
+    if (matchingDeposits.length > 1) {
+      results.push({
+        deposit_id: deposit.id,
+        status: "AMBIGUOUS_TRANSFER",
+        tx_hash: transfer.hash,
+        error:
+          "ESTA TRANSFERENCIA COINCIDE CON VARIOS DEPÓSITOS. NO SE ACREDITÓ A NINGÚN USUARIO.",
+      });
+
+      continue;
+    }
+
+    const result = await confirmDeposit(
+      deposit,
+      transfer
+    );
 
     results.push(result);
   }
@@ -850,8 +893,6 @@ export async function GET(
     const deposits =
       await getPendingDeposits();
 
-    // SI NO HAY DEPÓSITOS
-
     if (deposits.length === 0) {
       return NextResponse.json({
         ok: true,
@@ -878,16 +919,24 @@ export async function GET(
 
     // RESPUESTA
 
+    const confirmed = results.filter(
+      (result) => result.status === "CONFIRMED"
+    ).length;
+
+    const errors = results.filter(
+      (result) => result.status === "ERROR"
+    ).length;
+
     return NextResponse.json({
-      ok: true,
+      ok: errors === 0,
       expired,
       pending: deposits.length,
       transfers: transfers.length,
-      processed: results.filter(
-        (result) => result.status === "CONFIRMED"
-      ).length,
+      processed: confirmed,
+      errors,
       results,
     });
+
   } catch (error) {
     console.error(
       "CHECK BEP20 ERROR:",
