@@ -21,7 +21,7 @@ export default function ReferidosPage() {
 
   const referralLink =
     typeof window !== "undefined" && referralCode
-      ? `${window.location.origin}/registro?ref=${encodeURIComponent(referralCode)}`
+      ? `${window.location.origin}/?ref=${encodeURIComponent(referralCode)}`
       : "";
 
   const totalReferidos = referralUsers.length;
