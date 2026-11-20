@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
@@ -52,6 +51,9 @@ export default function AjustesPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [createdAt, setCreatedAt] = useState("");
+
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +117,7 @@ export default function AjustesPage() {
     setLoading(true);
     setError("");
     setMessage("");
+    setConnectionResult("");
 
     try {
       const { data } = await authorizedRequest("GET");
@@ -154,6 +157,7 @@ export default function AjustesPage() {
     setLoading(true);
     setError("");
     setMessage("");
+    setConnectionResult("");
 
     try {
       const { data } = await authorizedRequest("POST");
@@ -199,6 +203,7 @@ export default function AjustesPage() {
     setLoading(true);
     setError("");
     setMessage("");
+    setConnectionResult("");
 
     try {
       const { data } = await authorizedRequest("PATCH");
@@ -243,6 +248,77 @@ export default function AjustesPage() {
       setError(
         "No se pudo copiar automáticamente. Muestra la clave y cópiala manualmente."
       );
+    }
+  }
+
+  async function testConnection() {
+    if (!apiKey) {
+      setError("No hay una clave API disponible para probar.");
+      return;
+    }
+
+    if (!active) {
+      setError(
+        "Tu clave aparece como inactiva. Actívala antes de probar la conexión."
+      );
+      return;
+    }
+
+    setTestingConnection(true);
+    setConnectionResult("");
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/partners/v1/offers", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+
+      const text = await response.text();
+
+      let result: unknown;
+
+      try {
+        result = text.trim()
+          ? JSON.parse(text)
+          : { error: "El servidor devolvió una respuesta vacía." };
+      } catch {
+        result = {
+          error: "El servidor no devolvió JSON válido.",
+          response: text.slice(0, 500),
+        };
+      }
+
+      setConnectionResult(
+        `Código HTTP: ${response.status}\n\n${JSON.stringify(
+          result,
+          null,
+          2
+        )}`
+      );
+
+      if (response.ok) {
+        setMessage(
+          "El servidor respondió correctamente. Revisa el resultado para confirmar la respuesta del catálogo."
+        );
+      } else {
+        setError(
+          `La conexión no fue aceptada. Código HTTP: ${response.status}.`
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `No se pudo completar la prueba: ${err.message}`
+          : "No se pudo conectar con la API."
+      );
+    } finally {
+      setTestingConnection(false);
     }
   }
 
@@ -370,6 +446,20 @@ export default function AjustesPage() {
       flexWrap: "wrap",
       marginTop: "8px",
     },
+    testResult: {
+      background: "#080b12",
+      border: "1px solid #3a4559",
+      borderRadius: "10px",
+      padding: "14px",
+      color: "#b9f6d3",
+      whiteSpace: "pre-wrap",
+      overflowWrap: "anywhere",
+      fontSize: "12px",
+      lineHeight: 1.6,
+      marginTop: "18px",
+      maxHeight: "420px",
+      overflowY: "auto",
+    },
   };
 
   return (
@@ -383,6 +473,7 @@ export default function AjustesPage() {
               setView("menu");
               setError("");
               setMessage("");
+              setConnectionResult("");
             } else {
               router.push("/home");
             }
@@ -407,7 +498,13 @@ export default function AjustesPage() {
                 <strong style={{ display: "block", fontSize: "17px" }}>
                   🔑 Clave API
                 </strong>
-                <span style={{ ...styles.muted, display: "block", marginTop: "7px" }}>
+                <span
+                  style={{
+                    ...styles.muted,
+                    display: "block",
+                    marginTop: "7px",
+                  }}
+                >
                   Consulta y administra la clave API de tu cuenta.
                 </span>
               </span>
@@ -490,7 +587,30 @@ export default function AjustesPage() {
                     >
                       Copiar clave
                     </button>
+
+                    <button
+                      type="button"
+                      style={styles.secondary}
+                      onClick={testConnection}
+                      disabled={testingConnection || loading}
+                    >
+                      {testingConnection
+                        ? "Probando conexión..."
+                        : "Probar conexión"}
+                    </button>
                   </div>
+
+                  {testingConnection && (
+                    <p style={styles.muted}>
+                      Consultando el catálogo de STORE GAMING...
+                    </p>
+                  )}
+
+                  {connectionResult && (
+                    <pre style={styles.testResult}>
+                      {connectionResult}
+                    </pre>
+                  )}
 
                   {createdAt && (
                     <p style={{ ...styles.muted, marginTop: "18px" }}>
@@ -528,7 +648,7 @@ export default function AjustesPage() {
                   type="button"
                   style={styles.secondary}
                   onClick={loadApi}
-                  disabled={loading}
+                  disabled={loading || testingConnection}
                 >
                   Actualizar estado
                 </button>
