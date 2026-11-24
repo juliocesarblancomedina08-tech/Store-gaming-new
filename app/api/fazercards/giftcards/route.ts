@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -29,19 +30,16 @@ function getErrorMessage(error: unknown): string {
 }
 
 async function fazerCardsFetch(endpoint: string) {
-  const response = await fetch(
-    `${FAZERCARDS_API}${endpoint}`,
-    {
-      method: "GET",
-      headers: {
-        "X-API-Key": API_KEY!,
-        Accept: "application/json",
-        "User-Agent": "STORE-GAMING/1.0",
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(20000),
-    }
-  );
+  const response = await fetch(`${FAZERCARDS_API}${endpoint}`, {
+    method: "GET",
+    headers: {
+      "X-API-Key": API_KEY!,
+      Accept: "application/json",
+      "User-Agent": "STORE-GAMING/1.0",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(20000),
+  });
 
   const raw = await response.text();
 
@@ -72,14 +70,40 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const categoryId =
-      request.nextUrl.searchParams.get("category_id");
+    const params = request.nextUrl.searchParams;
 
-    // Con category_id consultamos las ofertas de esa categoría.
-    // Sin category_id solicitamos las categorías de Gift Cards.
-    const endpoint = categoryId
-      ? `/giftcards/cards?category_id=${encodeURIComponent(categoryId)}`
-      : "/giftcards?limit=50";
+    const categoryId = params.get("category_id")?.trim() || "";
+    const cursor = params.get("cursor")?.trim() || "";
+
+    if (cursor.length > 2048) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "El cursor es demasiado largo.",
+        },
+        { status: 400 }
+      );
+    }
+
+    let endpoint: string;
+
+    if (categoryId) {
+      const query = new URLSearchParams({
+        category_id: categoryId,
+      });
+
+      endpoint = `/giftcards/cards?${query.toString()}`;
+    } else {
+      const query = new URLSearchParams({
+        limit: "50",
+      });
+
+      if (cursor) {
+        query.set("cursor", cursor);
+      }
+
+      endpoint = `/giftcards?${query.toString()}`;
+    }
 
     const result = await fazerCardsFetch(endpoint);
 
@@ -101,18 +125,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const responseData = isObject(result.data)
+      ? result.data
+      : {};
+
+    const meta = isObject(responseData.meta)
+      ? responseData.meta
+      : null;
+
     return NextResponse.json(
       {
         ok: true,
         supplier: "FazerCards",
         type: categoryId ? "offers" : "categories",
-        category_id: categoryId,
+        category_id: categoryId || null,
         data: result.data,
+        pagination: categoryId
+          ? null
+          : {
+              total: meta?.total ?? null,
+              limit: meta?.limit ?? 50,
+              next_cursor: meta?.next_cursor ?? null,
+              has_more: meta?.has_more ?? false,
+            },
       },
       {
         headers: {
-          "Cache-Control":
-            "s-maxage=300, stale-while-revalidate=600",
+          "Cache-Control": "no-store, private",
         },
       }
     );
