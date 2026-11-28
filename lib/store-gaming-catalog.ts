@@ -1,10 +1,11 @@
 
+import { ARENA_BREAKOUT } from "./games/arena-breakout";
+
 // ============================================================
 // STORE GAMING - CATÁLOGO COMERCIAL CENTRAL
 // TOP UP + GIFT CARDS
 // ============================================================
 
-// Moneda oficial del catálogo
 export const CATALOG_CURRENCY = "USD";
 
 // ============================================================
@@ -51,14 +52,30 @@ export type GiftCardProduct = {
 
 // ============================================================
 // CATÁLOGO TOP UP
-// Aquí incorporaremos los juegos y sus ofertas comerciales.
 // ============================================================
 
-export const TOPUP_CATALOG: TopUpProduct[] = [];
+export const TOPUP_CATALOG: TopUpProduct[] = [
+  {
+    id: "arena-breakout",
+    name: ARENA_BREAKOUT.name,
+    categoryId: ARENA_BREAKOUT.categoryId,
+    type: "topup",
+    image: ARENA_BREAKOUT.image,
+    note: ARENA_BREAKOUT.note,
+    fields: [ARENA_BREAKOUT.field],
+    offers: ARENA_BREAKOUT.offers.map((offer) => ({
+      id: offer.id,
+      name: offer.name,
+      displayName: offer.displayName,
+      price: offer.price,
+      currency: CATALOG_CURRENCY,
+      published: true,
+    })),
+  },
+];
 
 // ============================================================
 // CATÁLOGO GIFT CARDS
-// Las 24 categorías de la tienda.
 // ============================================================
 
 export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
@@ -74,8 +91,8 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
       { id: "ff-global-2", name: "231 Diamantes", price: 2.00, currency: "USD", published: true },
       { id: "ff-global-5", name: "583 Diamantes", price: 5.00, currency: "USD", published: true },
       { id: "ff-global-10", name: "1188 Diamantes", price: 10.00, currency: "USD", published: true },
-      { id: "ff-global-20", name: "2420 Diamantes", price: 20.00, currency: "USD", published: true }
-    ]
+      { id: "ff-global-20", name: "2420 Diamantes", price: 20.00, currency: "USD", published: true },
+    ],
   },
   {
     id: "roblox-global",
@@ -84,7 +101,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "GLOBAL",
     image: "/images/gift-cards/gift-roblox-global.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "roblox-ru",
@@ -93,7 +110,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "RUSIA",
     image: "/images/gift-cards/gift-roblox-ru.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "roblox-eeuu",
@@ -114,8 +131,8 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
       { id: "9", name: "50 USD", price: 50.99, currency: "USD", published: true },
       { id: "10", name: "75 USD", price: 76.49, currency: "USD", published: true },
       { id: "11", name: "100 USD", price: 101.99, currency: "USD", published: true },
-      { id: "12", name: "200 USD", price: 203.99, currency: "USD", published: true }
-    ]
+      { id: "12", name: "200 USD", price: 203.99, currency: "USD", published: true },
+    ],
   },
   {
     id: "roblox-id",
@@ -124,7 +141,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "INDONESIA",
     image: "/images/gift-cards/gift-roblox-id.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "arena-breakout",
@@ -133,7 +150,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "GLOBAL",
     image: "/images/gift-cards/gift-arena-breakout.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "fortnite-ae",
@@ -142,7 +159,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EMIRATOS ÁRABES",
     image: "/images/gift-cards/gift-fortnite-ae.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "fortnite-suiza",
@@ -151,7 +168,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "SUIZA",
     image: "/images/gift-cards/gift-fortnite-suiza.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "fortnite-eeuu",
@@ -160,7 +177,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EE.UU",
     image: "/images/gift-cards/gift-fortnite-eeuu.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "fortnite-de",
@@ -169,7 +186,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "ALEMANIA",
     image: "/images/gift-cards/gift-fortnite-de.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "fortnite-ue",
@@ -178,7 +195,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EUROPA",
     image: "/images/gift-cards/gift-fortnite-ue.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "google-play-eeuu",
@@ -187,7 +204,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EE.UU",
     image: "/images/gift-cards/gift-google-play-eeuu.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "google-play-brasil",
@@ -196,7 +213,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "BRASIL",
     image: "/images/gift-cards/gift-google-play-brasil.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "google-play-es",
@@ -205,7 +222,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "ESPAÑA",
     image: "/images/gift-cards/gift-google-play-es.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "google-play-ae",
@@ -214,7 +231,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EMIRATOS ÁRABES",
     image: "/images/gift-cards/gift-google-play-ae.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "google-play-id",
@@ -223,7 +240,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "INDONESIA",
     image: "/images/gift-cards/gift-google-play-id.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "league-of-legends-eeuu",
@@ -232,7 +249,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EE.UU",
     image: "/images/gift-cards/gift-league-of-legends-eeuu.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "league-of-legends-ru",
@@ -241,7 +258,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "RUSIA",
     image: "/images/gift-cards/gift-league-of-legends-ru.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "razer-gold-eeuu",
@@ -250,7 +267,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EE.UU",
     image: "/images/gift-cards/gift-razer-gold-eeuu.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "razer-gold-global",
@@ -259,7 +276,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "GLOBAL",
     image: "/images/gift-cards/gift-razer-gold-global.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "razer-gold-id",
@@ -268,7 +285,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "INDONESIA",
     image: "/images/gift-cards/gift-razer-gold-id.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "razer-gold-mx",
@@ -277,7 +294,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "MÉXICO",
     image: "/images/gift-cards/gift-razer-gold-mx.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "netflix-mx",
@@ -286,7 +303,7 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "MÉXICO",
     image: "/images/gift-cards/gift-netflix-mx.jpg",
-    offers: []
+    offers: [],
   },
   {
     id: "netflix-eeuu",
@@ -295,8 +312,8 @@ export const GIFT_CARD_CATALOG: GiftCardProduct[] = [
     type: "gift_card",
     region: "EE.UU",
     image: "/images/gift-cards/gift-netflix-eeuu.jpg",
-    offers: []
-  }
+    offers: [],
+  },
 ];
 
 // ============================================================
@@ -315,6 +332,6 @@ export function getAllCatalog() {
   return {
     currency: CATALOG_CURRENCY,
     topups: TOPUP_CATALOG,
-    gift_cards: GIFT_CARD_CATALOG
+    gift_cards: GIFT_CARD_CATALOG,
   };
 }
